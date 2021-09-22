@@ -7,6 +7,9 @@
 |_______| \______/   \______|  \______|
 ```
 
+[![](https://github.com/rafaelespinoza/logg/workflows/build/badge.svg)](https://github.com/rafaelespinoza/logg/actions)
+[![](https://pkg.go.dev/badge/github.com/rafaelespinoza/logg)](https://pkg.go.dev/github.com/rafaelespinoza/logg)
+
 Package logg is merely a wrapper around github.com/rs/zerolog. The primary goal
 is to abstract structured logging for an application while providing a simpler
 API. It's rather opinionated, and offers a limited feature set.
