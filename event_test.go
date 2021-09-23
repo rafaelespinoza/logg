@@ -19,7 +19,7 @@ func TestEvent(t *testing.T) {
 
 	ctx := logg.CtxWithID(context.Background())
 	sink := newDataSink()
-	logger := logg.NewLoggerWithID(ctx, map[string]interface{}{"sierra": "nevada"}, sink)
+	logger := logg.New(map[string]interface{}{"sierra": "nevada"}, sink).WithID(ctx)
 
 	logger.WithData(map[string]interface{}{"bravo": true}).Infof("test")
 	if err := json.Unmarshal(sink.Raw(), &parsedRoot); err != nil {

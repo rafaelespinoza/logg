@@ -11,24 +11,24 @@ func TestLogger(t *testing.T) {
 	// combinations can work without panicking on invalid memory address refs.
 
 	t.Run("no sinks", func(t *testing.T) {
-		logg.NewLogger(nil).Infof(t.Name())
-		logg.NewLogger(map[string]interface{}{"a": "b"}).Infof(t.Name())
+		logg.New(nil).Infof(t.Name())
+		logg.New(map[string]interface{}{"a": "b"}).Infof(t.Name())
 	})
 
 	t.Run("empty sinks", func(t *testing.T) {
-		logg.NewLogger(nil, nil).Infof(t.Name())
-		logg.NewLogger(map[string]interface{}{"a": "b"}, nil).Infof(t.Name())
+		logg.New(nil, nil).Infof(t.Name())
+		logg.New(map[string]interface{}{"a": "b"}, nil).Infof(t.Name())
 	})
 
 	t.Run("one sink", func(t *testing.T) {
 		alfa := newDataSink()
-		logg.NewLogger(nil, alfa).Infof(t.Name())
+		logg.New(nil, alfa).Infof(t.Name())
 		if len(alfa.Raw()) < 1 {
 			t.Error("did not write data")
 		}
 
 		bravo := newDataSink()
-		logg.NewLogger(map[string]interface{}{"a": "b"}, bravo).Infof(t.Name())
+		logg.New(map[string]interface{}{"a": "b"}, bravo).Infof(t.Name())
 		if len(bravo.Raw()) < 1 {
 			t.Error("did not write data")
 		}
@@ -36,7 +36,7 @@ func TestLogger(t *testing.T) {
 
 	t.Run("more sinks", func(t *testing.T) {
 		alfa, bravo := newDataSink(), newDataSink()
-		logg.NewLogger(nil, alfa, bravo).Infof(t.Name())
+		logg.New(nil, alfa, bravo).Infof(t.Name())
 		if len(alfa.Raw()) < 1 {
 			t.Error("did not write data")
 		}
@@ -45,7 +45,7 @@ func TestLogger(t *testing.T) {
 		}
 
 		charlie, delta := newDataSink(), newDataSink()
-		logg.NewLogger(map[string]interface{}{"a": "b"}, charlie, delta).Infof(t.Name())
+		logg.New(map[string]interface{}{"a": "b"}, charlie, delta).Infof(t.Name())
 		if len(charlie.Raw()) < 1 {
 			t.Error("did not write data")
 		}

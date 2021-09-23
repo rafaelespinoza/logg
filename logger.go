@@ -13,11 +13,11 @@ type logger struct {
 	fields  map[string]interface{}
 }
 
-// NewLogger initializes a logger Emitter type and configures it so each event
+// New initializes a logger Emitter type and configures it so each event
 // emission outputs fields at the data key. If sinks is empty or the first sink
 // is nil, then it writes to the same destination as the root logger. If sinks
 // is non-empty then it duplicates the root logger and writes to sinks.
-func NewLogger(fields map[string]interface{}, sinks ...io.Writer) Emitter {
+func New(fields map[string]interface{}, sinks ...io.Writer) Emitter {
 	var sub zerolog.Context
 	if len(sinks) == 0 || sinks[0] == nil {
 		sub = rootLogger().With()
@@ -27,13 +27,6 @@ func NewLogger(fields map[string]interface{}, sinks ...io.Writer) Emitter {
 	}
 
 	return &logger{context: &sub, fields: shallowDupe(fields)}
-}
-
-// NewLoggerWithID creates a logger Emitter type and sets up a tracing ID on its
-// context. Logging entries will have that ID value on a top-level key.
-func NewLoggerWithID(ctx context.Context, fields map[string]interface{}, sinks ...io.Writer) Emitter {
-	lgr := NewLogger(fields, sinks...)
-	return lgr.WithID(ctx)
 }
 
 func (l *logger) Errorf(err error, msg string, args ...interface{}) {

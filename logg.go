@@ -62,18 +62,6 @@ func Infof(msg string, args ...interface{}) {
 	rootLogger().Info().Msgf(msg, args...)
 }
 
-// WithID initializes an Emitter with a tracing ID. To log something, call Infof
-// or Errorf on the returned Emitter.
-func WithID(ctx context.Context) Emitter {
-	return NewLoggerWithID(ctx, nil)
-}
-
-// WithData initializes an Emitter with data fields. To log something, call
-// Infof or Errorf on the returned Emitter.
-func WithData(fields map[string]interface{}) Emitter {
-	return NewLogger(fields)
-}
-
 // An Emitter emitter writes to the log at info or error levels.
 type Emitter interface {
 	Infof(msg string, args ...interface{})

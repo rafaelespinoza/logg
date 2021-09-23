@@ -18,7 +18,7 @@ The feature set is:
 
 - provide timestamps
 - unique event ids
-- logging levels (just error and info)
+- leveled logging (just error and info)
 - emit JSON
 
 ## Usage
@@ -29,11 +29,12 @@ events. Things initialized are the output sinks and an optional "version" field.
 The "version" is just some application versioning metadata, which may be useful
 if you want to know something about your application's source code.
 
-See the godoc examples for details.
-
 Use the `Errorf`, `Infof` functions to log at error, info levels respectively.
-To add more event-specific fields to a logging entry, create an event with
-`NewEvent` and call one of the `Emitter` methods.
+To add more event-specific fields to a logging entry, call `New` and then call
+one of the `Emitter` methods. Use the `Emitter.WithID` method if you need a
+unique tracing ID.
+
+See more in the godoc examples.
 
 ## Event shape
 

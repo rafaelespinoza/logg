@@ -20,7 +20,7 @@ func init() {
 func TestLogg(t *testing.T) {
 	t.Run("Info", func(t *testing.T) {
 		sink := newDataSink()
-		logger := logg.NewLogger(map[string]interface{}{"sierra": "nevada"}, sink)
+		logger := logg.New(map[string]interface{}{"sierra": "nevada"}, sink)
 
 		// test logger
 		logger.Infof("hello")
@@ -64,7 +64,7 @@ func TestLogg(t *testing.T) {
 
 	t.Run("Error", func(t *testing.T) {
 		sink := newDataSink()
-		logger := logg.NewLogger(map[string]interface{}{"sierra": "nevada"}, sink)
+		logger := logg.New(map[string]interface{}{"sierra": "nevada"}, sink)
 
 		// test logger
 		logger.Errorf(errors.New("hello"), "logger error")
@@ -113,7 +113,7 @@ func TestWithID(t *testing.T) {
 		ctx := context.Background()
 		sink := newDataSink()
 
-		logger := logg.NewLoggerWithID(ctx, map[string]interface{}{"sierra": "nevada"}, sink)
+		logger := logg.New(map[string]interface{}{"sierra": "nevada"}, sink).WithID(ctx)
 		logger.Infof("logger with id")
 		testLogg(t, sink.Raw(), nil, "logger with id", true, map[string]interface{}{"sierra": "nevada"})
 		if t.Failed() {
@@ -133,7 +133,7 @@ func TestWithID(t *testing.T) {
 		ctx := context.Background()
 		sink := newDataSink()
 
-		logger := logg.NewLogger(map[string]interface{}{"sierra": "nevada"}, sink)
+		logger := logg.New(map[string]interface{}{"sierra": "nevada"}, sink)
 		logger.Infof("logger without id")
 		testLogg(t, sink.Raw(), nil, "logger without id", false, map[string]interface{}{"sierra": "nevada"})
 		if t.Failed() {
@@ -155,7 +155,7 @@ func TestWithData(t *testing.T) {
 	t.Run("allows input fields to replace existing fields", func(t *testing.T) {
 		sink := newDataSink()
 
-		logger := logg.NewLogger(map[string]interface{}{"foo": "alfa"}, sink)
+		logger := logg.New(map[string]interface{}{"foo": "alfa"}, sink)
 		logger.Infof("a")
 		testLogg(t, sink.Raw(), nil, "a", false, map[string]interface{}{"foo": "alfa"})
 		if t.Failed() {
