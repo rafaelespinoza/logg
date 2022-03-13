@@ -9,6 +9,7 @@
 
 [![](https://github.com/rafaelespinoza/logg/workflows/build/badge.svg)](https://github.com/rafaelespinoza/logg/actions)
 [![](https://pkg.go.dev/badge/github.com/rafaelespinoza/logg)](https://pkg.go.dev/github.com/rafaelespinoza/logg)
+[![codecov](https://codecov.io/gh/rafaelespinoza/logg/branch/main/graph/badge.svg?token=GFUSTO55PY)](https://codecov.io/gh/rafaelespinoza/logg)
 
 Package logg is merely a wrapper around github.com/rs/zerolog. The primary goal
 is to abstract structured logging for an application while providing a simpler
