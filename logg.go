@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/rs/zerolog"
@@ -18,7 +19,7 @@ var (
 // dataFieldName is the logging entry key for any event-specific data.
 const dataFieldName = "data"
 
-// Configure initializes a root logger from with all subsequent logging events
+// Configure initializes a root logger from which all subsequent logging events
 // are derived, provided there are no previous writes to the log.  If there are
 // any log writes before configuration, then all writes will go to os.Stderr by
 // default. So, it's best to call this function as early as possible in your
@@ -44,8 +45,10 @@ func Configure(w io.Writer, version map[string]string, moreSinks ...io.Writer) {
 			root = root.Dict("version", dict)
 		}
 
-		lgr := root.Logger()
-		lgr.Info().Msg("configured logger")
+		if strings.ToUpper(os.Getenv("LOGG_LEVEL")) == "DEBUG" {
+			lgr := root.Logger()
+			lgr.Debug().Msg("configured logger")
+		}
 	})
 }
 

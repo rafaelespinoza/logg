@@ -63,9 +63,7 @@ func ExampleCtxWithID() {
 	bravo.Infof("boston")
 	bravo.Infof("boisterous")
 
-	// If you need another tracing ID, then use a brand-new context as the
-	// parent context create create another context (using a
-	// brand-new context as the parent)
+	// If you need another tracing ID, then use another context as the parent.
 	ctxC := logg.CtxWithID(context.Background())
 	charlie := logg.New(map[string]interface{}{"c": "C"}).WithID(ctxC)
 	charlie.Infof("chicago")

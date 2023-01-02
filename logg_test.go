@@ -14,6 +14,7 @@ import (
 )
 
 func init() {
+	_ = os.Setenv("LOGG_LEVEL", "debug")
 	logg.Configure(os.Stderr, map[string]string{"foo": "bar"})
 }
 
