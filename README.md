@@ -11,7 +11,7 @@
 [![](https://pkg.go.dev/badge/github.com/rafaelespinoza/logg)](https://pkg.go.dev/github.com/rafaelespinoza/logg)
 [![codecov](https://codecov.io/gh/rafaelespinoza/logg/branch/main/graph/badge.svg?token=GFUSTO55PY)](https://codecov.io/gh/rafaelespinoza/logg)
 
-Package logg is merely a wrapper around github.com/rs/zerolog. The primary goal
+Package logg is merely a wrapper around log/slog. The primary goal
 is to abstract structured logging for an application while providing a simpler
 API. It's rather opinionated, and offers a limited feature set.
 
@@ -54,7 +54,7 @@ These top-level fields are always present:
 
 - `level`: string, either `"info"`, `"error"`
 - `time`: string, an rfc3339 timestamp of emission in system's timezone.
-- `message`: string, what happened
+- `msg`: string, what happened
 
 These top-level fields may or may not be present, depending on configuration and
 how the event is emitted:
@@ -63,7 +63,7 @@ how the event is emitted:
 - `version`: map[string]string, optional versioning metadata from your
   application. Will only be present when this data is passed in to the
   `Configure` function.
-- `data`: map[string]interface{}, event-specific fields. Only present when an
+- `data`: map[string]any, event-specific fields. Only present when an
   event emitter is constructed with fields via the `New` function and/or is
   passed something to its `WithData` method.
 
@@ -74,7 +74,7 @@ Info level
 {
   "level":"info",
   "time":"2021-09-22T08:59:52-07:00",
-  "message":"TestLogger/empty_sinks",
+  "msg":"TestLogger/empty_sinks",
   "data":{
     "alfa": "anything",
     "bravo": {
@@ -94,7 +94,7 @@ Error level
   "level":"error",
   "error":"pq: duplicate key value violates unique constraint \"unique_index_on_foos_bar_id\"",
   "time":"2021-09-22T08:47:11-07:00",
-  "message":"database library error",
+  "msg":"database library error",
   "data":{
     "code":"23505",
     "message":"duplicate key value violates unique constraint \"unique_index_on_foos_bar_id\"",
@@ -110,7 +110,7 @@ invoked before the first invocation of any library function.
 {
   "level":"info",
   "time":"2021-09-22T08:59:52-07:00",
-  "message":"TestLogger/empty_sinks",
+  "msg":"TestLogger/empty_sinks",
   "version":{
     "branch_name":"main",
     "go_version":"v1.17",

@@ -1,21 +1,6 @@
 package logg
 
-import (
-	"context"
-
-	"github.com/rs/zerolog"
-)
-
-// getSetID retrieves an existing unique id from ctx or creates one. In either
-// case, the output is a new context copied from the input.
-func getSetID(ctx context.Context, id string) (outCtx context.Context, outID string) {
-	outID, ok := GetID(ctx)
-	if !ok {
-		outID = id
-	}
-	outCtx = SetID(ctx, outID)
-	return
-}
+import "context"
 
 type traceIDKey struct{}
 
@@ -32,11 +17,4 @@ func SetID(ctx context.Context, val string) context.Context {
 func GetID(ctx context.Context) (id string, found bool) {
 	id, found = ctx.Value(traceIDKey{}).(string)
 	return
-}
-
-func newZerologCtxWithID(ctx context.Context, lgr *zerolog.Logger, id string) *zerolog.Context {
-	next, nextID := getSetID(ctx, id)
-	next = lgr.WithContext(next)
-	ztx := zerolog.Ctx(next).With().Str("x_trace_id", nextID)
-	return &ztx
 }

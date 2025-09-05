@@ -2,22 +2,24 @@ package logg
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"log/slog"
+	"maps"
 	"os"
+	"slices"
+	"sort"
 	"strings"
 	"sync"
-
-	"github.com/rs/zerolog"
 )
 
 var (
-	root          zerolog.Context
+	root          *logger
 	configureOnce sync.Once
 	defaultSink   = os.Stderr
 )
 
-// dataFieldName is the logging entry key for any event-specific data.
-const dataFieldName = "data"
+const loggLevelEnvVar = "LOGG_LEVEL"
 
 // Configure initializes a root logger from which all subsequent logging events
 // are derived, provided there are no previous writes to the log.  If there are
@@ -34,20 +36,22 @@ const dataFieldName = "data"
 func Configure(w io.Writer, version map[string]string, moreSinks ...io.Writer) {
 	configureOnce.Do(func() {
 		sinks := append([]io.Writer{w}, moreSinks...)
-		m := zerolog.MultiLevelWriter(sinks...)
-		root = zerolog.New(m).With().Timestamp()
+		m := io.MultiWriter(sinks...)
+		lvl := os.Getenv(loggLevelEnvVar)
 
+		versioningData := []slog.Attr{}
 		if version != nil {
-			dict := zerolog.Dict()
-			for key, val := range version {
-				dict = dict.Str(key, val)
+			versioningData = make([]slog.Attr, len(version))
+			for i, key := range slices.Sorted(maps.Keys(version)) {
+				versioningData[i] = slog.String(key, version[key])
 			}
-			root = root.Dict("version", dict)
 		}
 
-		if strings.ToUpper(os.Getenv("LOGG_LEVEL")) == "DEBUG" {
-			lgr := root.Logger()
-			lgr.Debug().Msg("configured logger")
+		lgr := newSlogger(m, lvl)
+		root = newLogger(lgr, versioningData, "", make(map[string]any))
+
+		if strings.ToUpper(lvl) == "DEBUG" {
+			root.lgr.Debug("configured logger")
 		}
 	})
 }
@@ -56,13 +60,17 @@ func Configure(w io.Writer, version map[string]string, moreSinks ...io.Writer) {
 // error field. If msg is a format string and there are args, then it works like
 // fmt.Printf.
 func Errorf(err error, msg string, args ...interface{}) {
-	rootLogger().Err(err).Msgf(msg, args...)
+	r := rootLogger()
+	m := fmt.Sprintf(msg, args...)
+	log(context.Background(), r, slog.LevelError, err, m, "", r.fields)
 }
 
 // Infof writes msg to the log at level info. If msg is a format string and
 // there are args, then it works like fmt.Printf.
 func Infof(msg string, args ...interface{}) {
-	rootLogger().Info().Msgf(msg, args...)
+	r := rootLogger()
+	m := fmt.Sprintf(msg, args...)
+	log(context.Background(), r, slog.LevelInfo, nil, m, "", r.fields)
 }
 
 // An Emitter writes to the log at info or error levels.
@@ -73,12 +81,11 @@ type Emitter interface {
 	WithData(fields map[string]interface{}) Emitter
 }
 
-func rootLogger() *zerolog.Logger {
+func rootLogger() *logger {
 	// fall back to default writer unless it's already configured.
 	Configure(defaultSink, nil)
 
-	out := root.Logger()
-	return &out
+	return root
 }
 
 func shallowDupe(in map[string]interface{}) (out map[string]interface{}) {
@@ -102,10 +109,52 @@ func mergeFields(dst, src map[string]interface{}) map[string]interface{} {
 	return dst
 }
 
-func newZerologInfoEvent(lgr *zerolog.Logger, fields map[string]interface{}) *zerolog.Event {
-	return lgr.Info().Dict(dataFieldName, zerolog.Dict().Fields(fields))
+func mapToAttrs(fields map[string]interface{}) []slog.Attr {
+	attrs := make([]slog.Attr, 0, len(fields))
+
+	for key, val := range fields {
+		attrs = append(attrs, slog.Attr{Key: key, Value: slog.AnyValue(val)})
+	}
+
+	sort.Slice(attrs, func(i, j int) bool { return attrs[i].Key < attrs[j].Key })
+	return attrs
 }
 
-func newZerologErrorEvent(lgr *zerolog.Logger, err error, fields map[string]interface{}) *zerolog.Event {
-	return lgr.Err(err).Dict(dataFieldName, zerolog.Dict().Fields(fields))
+// Logging entry keys.
+const (
+	// versionFieldName is the logging entry key for application versioning info.
+	versionFieldName = "version"
+	// errorFieldName is the logging entry key for an error.
+	errorFieldName = "error"
+	// traceIDFieldName is the logging entry key for a tracing ID.
+	traceIDFieldName = "x_trace_id"
+	// dataFieldName is the logging entry key for any event-specific data.
+	dataFieldName = "data"
+)
+
+func log(ctx context.Context, l *logger, v slog.Level, err error, msg string, traceID string, fields map[string]interface{}) {
+	if !l.lgr.Enabled(ctx, v) {
+		return
+	}
+
+	attrsToLog := make([]slog.Attr, 0, 4)
+	if len(l.versioning) > 0 {
+		attrsToLog = append(attrsToLog, slog.GroupAttrs(versionFieldName, l.versioning...))
+	}
+
+	if err != nil {
+		attrsToLog = append(attrsToLog, slog.Any(errorFieldName, err))
+	}
+
+	if traceID != "" {
+		attrsToLog = append(attrsToLog, slog.String(traceIDFieldName, traceID))
+	}
+
+	if len(fields) > 0 {
+		attrsToLog = append(attrsToLog, slog.GroupAttrs(dataFieldName, mapToAttrs(fields)...))
+	}
+
+	attrsToLog = slices.Clip(attrsToLog)
+
+	l.lgr.LogAttrs(ctx, v, msg, attrsToLog...)
 }

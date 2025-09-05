@@ -1,16 +1,21 @@
 package logg
 
 import (
+	"cmp"
 	"context"
+	"fmt"
 	"io"
-
-	"github.com/rs/zerolog"
+	"log/slog"
+	"os"
+	"strings"
 )
 
 // A logger emits events with preset fields.
 type logger struct {
-	context *zerolog.Context
-	fields  map[string]interface{}
+	lgr        *slog.Logger
+	versioning []slog.Attr
+	id         string
+	fields     map[string]interface{}
 }
 
 // New initializes a logger Emitter type and configures it so each event
@@ -18,46 +23,74 @@ type logger struct {
 // is nil, then it writes to the same destination as the root logger. If sinks
 // is non-empty then it duplicates the root logger and writes to sinks.
 func New(fields map[string]interface{}, sinks ...io.Writer) Emitter {
-	var sub zerolog.Context
-	if len(sinks) == 0 || sinks[0] == nil {
-		sub = rootLogger().With()
-	} else {
-		m := zerolog.MultiLevelWriter(sinks...)
-		sub = rootLogger().Output(m).With()
+	if len(sinks) < 1 || sinks[0] == nil {
+		sinks = []io.Writer{defaultSink}
 	}
-
-	return &logger{context: &sub, fields: shallowDupe(fields)}
+	m := io.MultiWriter(sinks...)
+	lvl := cmp.Or(os.Getenv(loggLevelEnvVar), slog.LevelInfo.String())
+	lgr := newSlogger(m, lvl)
+	return newLogger(lgr, rootLogger().versioning, "", fields)
 }
 
 func (l *logger) Errorf(err error, msg string, args ...interface{}) {
-	lgr := l.context.Logger()
-	newZerologErrorEvent(&lgr, err, l.fields).Msgf(msg, args...)
+	m := fmt.Sprintf(msg, args...)
+	log(context.Background(), l, slog.LevelError, err, m, l.id, l.fields)
 }
 
 func (l *logger) Infof(msg string, args ...interface{}) {
-	lgr := l.context.Logger()
-	newZerologInfoEvent(&lgr, l.fields).Msgf(msg, args...)
+	m := fmt.Sprintf(msg, args...)
+	log(context.Background(), l, slog.LevelInfo, nil, m, l.id, l.fields)
 }
 
 func (l *logger) WithID(ctx context.Context) Emitter {
-	lgr := l.context.Logger()
-	id, _ := GetID(ctx)
-	l.context = newZerologCtxWithID(ctx, &lgr, id)
+	l.id, _ = GetID(ctx)
 	return l
 }
 
 // WithData prepares a logging entry and captures any event-specific data in
 // fields. Call the Emitter methods to write to the log.
 func (l *logger) WithData(fields map[string]interface{}) Emitter {
-	logger := l.context.Logger()
+	versioning := rootLogger().versioning
 
 	// use original l.fields as a base, but let the input fields override any
 	// conflict keys for the output event.
 	tmp := shallowDupe(l.fields)
-	dupedFields := mergeFields(tmp, fields)
+	mergedFields := mergeFields(tmp, fields)
 
-	return &event{
-		logger: &logger,
-		fields: dupedFields,
+	return newLogger(l.lgr, versioning, l.id, mergedFields)
+}
+
+func newLogger(lgr *slog.Logger, versioning []slog.Attr, id string, fields map[string]any) *logger {
+	out := logger{
+		lgr:        lgr,
+		versioning: versioning,
+		id:         id,
+		fields:     fields,
 	}
+
+	return &out
+}
+
+func newSlogger(w io.Writer, level string) *slog.Logger {
+	var lvl slog.Level
+	level = strings.ToUpper(strings.TrimSpace(level))
+	switch level {
+	case slog.LevelDebug.String():
+		lvl = slog.LevelDebug
+	case slog.LevelInfo.String():
+		lvl = slog.LevelInfo
+	case slog.LevelWarn.String():
+		lvl = slog.LevelWarn
+	case slog.LevelError.String():
+		lvl = slog.LevelError
+	default:
+		lvl = slog.LevelInfo
+		slog.Warn("unknown level, setting default", "unknown_level", level, "default", lvl.String())
+	}
+
+	handler := slog.NewJSONHandler(w, &slog.HandlerOptions{Level: lvl})
+
+	lgr := slog.New(handler)
+	lgr.Debug("initialized logger")
+	return lgr
 }
