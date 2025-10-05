@@ -18,8 +18,8 @@ API. It's rather opinionated, and offers a limited feature set.
 The feature set is:
 
 - provide timestamps
-- unique event ids
-- leveled logging (just error and info)
+- tracing ids (user-provided)
+- leveled logging (only ERROR and INFO severities)
 - emit JSON
 
 ## Usage
@@ -31,9 +31,20 @@ The "version" is just some application versioning metadata, which may be useful
 if you want to know something about your application's source code.
 
 Use the `Errorf`, `Infof` functions to log at error, info levels respectively.
+
+Tracing IDs are managed with a context API, see the `SetID` and `GetID`
+functions. You supply the value. There are many choices in this area, some
+examples are:
+
+- [github.com/gofrs/uuid](https://github.com/gofrs/uuid)
+- [github.com/google/uuid](https://github.com/google/uuid)
+- [github.com/rs/xid](https://github.com/rs/xid)
+- [github.com/segmentio/ksuid](https://github.com/segmentio/ksuid)
+
 To add more event-specific fields to a logging entry, call `New` and then call
-one of the `Emitter` methods. Use the `Emitter.WithID` method if you need a
-unique tracing ID.
+one of the `Emitter` methods. Call the `Emitter.WithData` method to
+independently decorate subsequent events based upon previous events. Use the
+`Emitter.WithID` to pass in a context with a tracing ID.
 
 See more in the godoc examples.
 
@@ -47,11 +58,14 @@ These top-level fields are always present:
 
 These top-level fields may or may not be present, depending on configuration and
 how the event is emitted:
-- `error`: string, an error message. only when the event is emitted with an
+- `error`: string, an error message. Only when the event is emitted with an
   Error level.
 - `version`: map[string]string, optional versioning metadata from your
-  application. will only be present when this data is passed in to the
+  application. Will only be present when this data is passed in to the
   `Configure` function.
+- `data`: map[string]interface{}, event-specific fields. Only present when an
+  event emitter is constructed with fields via the `New` function and/or is
+  passed something to its `WithData` method.
 
 ### Example events
 

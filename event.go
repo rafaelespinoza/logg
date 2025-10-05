@@ -36,7 +36,8 @@ func (e *event) WithID(ctx context.Context) Emitter {
 	// not have an API to overwrite or replace those existing values, nor does
 	// it have a way to write to the same io.Writer destination without copying
 	// all the fields.
-	lgr := newZerologCtxWithID(ctx, e.logger).Logger()
+	id, _ := GetID(ctx)
+	lgr := newZerologCtxWithID(ctx, e.logger, id).Logger()
 	e.logger = &lgr
 	return e
 }

@@ -41,7 +41,8 @@ func (l *logger) Infof(msg string, args ...interface{}) {
 
 func (l *logger) WithID(ctx context.Context) Emitter {
 	lgr := l.context.Logger()
-	l.context = newZerologCtxWithID(ctx, &lgr)
+	id, _ := GetID(ctx)
+	l.context = newZerologCtxWithID(ctx, &lgr, id)
 	return l
 }
 

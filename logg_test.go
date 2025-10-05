@@ -139,7 +139,7 @@ func TestLogg(t *testing.T) {
 func TestWithID(t *testing.T) {
 	t.Run("logger passes ID to event", func(t *testing.T) {
 		// The logger calls WithID, but the event does not.
-		ctx := context.Background()
+		ctx := logg.SetID(context.Background(), "logger_id")
 		sink := newDataSink()
 
 		logger := logg.New(map[string]interface{}{"sierra": "nevada"}, sink).WithID(ctx)
@@ -159,7 +159,6 @@ func TestWithID(t *testing.T) {
 	t.Run("event can set its own ID", func(t *testing.T) {
 		// The logger does not call WithID, but the event does.
 
-		ctx := context.Background()
 		sink := newDataSink()
 
 		logger := logg.New(map[string]interface{}{"sierra": "nevada"}, sink)
@@ -169,6 +168,7 @@ func TestWithID(t *testing.T) {
 			t.Logf("%s", sink.Raw())
 		}
 
+		ctx := logg.SetID(context.Background(), "event_id")
 		logger.WithData(map[string]interface{}{"bravo": true}).WithID(ctx).Infof("event with own id")
 		testLogg(t, sink.Raw(), nil, "event with own id", true, map[string]interface{}{
 			"bravo":  true,

@@ -65,7 +65,7 @@ func Infof(msg string, args ...interface{}) {
 	rootLogger().Info().Msgf(msg, args...)
 }
 
-// An Emitter emitter writes to the log at info or error levels.
+// An Emitter writes to the log at info or error levels.
 type Emitter interface {
 	Infof(msg string, args ...interface{})
 	Errorf(err error, msg string, args ...interface{})

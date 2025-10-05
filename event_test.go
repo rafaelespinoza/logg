@@ -10,14 +10,16 @@ import (
 )
 
 func TestEvent(t *testing.T) {
-	const traceIDKey = "x_trace_id"
+	const (
+		traceIDKey = "x_trace_id"
+		traceIDVal = "event_id"
+	)
 	var (
 		parsedRoot        map[string]interface{}
 		numTraceKeyValues int
-		traceIDVal        string
 	)
 
-	ctx := logg.CtxWithID(context.Background())
+	ctx := logg.SetID(context.Background(), traceIDVal)
 	sink := newDataSink()
 	logger := logg.New(map[string]interface{}{"sierra": "nevada"}, sink).WithID(ctx)
 
@@ -29,11 +31,6 @@ func TestEvent(t *testing.T) {
 		t.Errorf("expected output to have key %q", traceIDKey)
 	} else if id.(string) == "" {
 		t.Errorf("expected non-empty value at %q", traceIDKey)
-	} else {
-		traceIDVal = id.(string)
-	}
-	if traceIDVal == "" {
-		t.Log("traceIDVal is empty")
 	}
 
 	numTraceKeyValues = strings.Count(string(sink.Raw()), traceIDKey)
@@ -63,15 +60,18 @@ func TestEvent(t *testing.T) {
 	}
 
 	// When the logger context has an ID, is passed to the event but the event
-	// also calls WithID, it should yield the same ID as the logger ID.
-	logger.WithData(map[string]interface{}{"bravo": true}).WithID(ctx).Infof("test")
+	// also calls WithID with another context, it replaces the ID.
+	const differentTraceID = "different_" + traceIDVal
+	ctxB := logg.SetID(ctx, differentTraceID)
+
+	logger.WithData(map[string]interface{}{"bravo": true}).WithID(ctxB).Infof("test")
 	if err := json.Unmarshal(sink.Raw(), &parsedRoot); err != nil {
 		t.Fatal(err)
 	}
 	if id, ok := parsedRoot[traceIDKey]; !ok {
 		t.Errorf("expected output to have key %q", traceIDKey)
-	} else if id.(string) != traceIDVal {
-		t.Errorf("wrong id; got %q, expected %q", id.(string), traceIDVal)
+	} else if id.(string) != differentTraceID {
+		t.Errorf("wrong id; got %q, expected %q", id.(string), differentTraceID)
 	}
 	// Documents known behavior stemming from the logging library, which doesn't
 	// do any field de-duplication. Calling WithID multiple times just adds

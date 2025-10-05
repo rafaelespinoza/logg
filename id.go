@@ -3,33 +3,40 @@ package logg
 import (
 	"context"
 
-	"github.com/rs/xid"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/hlog"
 )
-
-// CtxWithID returns a new context with an ID. If the ID already existed in the
-// context, then the new context has the same ID as before.
-func CtxWithID(ctx context.Context) context.Context {
-	out, _ := getSetID(ctx)
-	return out
-}
 
 // getSetID retrieves an existing unique id from ctx or creates one. In either
 // case, the output is a new context copied from the input.
-func getSetID(ctx context.Context) (out context.Context, id string) {
-	xID, ok := hlog.IDFromCtx(ctx)
+func getSetID(ctx context.Context, id string) (outCtx context.Context, outID string) {
+	outID, ok := GetID(ctx)
 	if !ok {
-		xID = xid.New()
+		outID = id
 	}
-	out = hlog.CtxWithID(ctx, xID)
-	id = xID.String()
+	outCtx = SetID(ctx, outID)
 	return
 }
 
-func newZerologCtxWithID(ctx context.Context, lgr *zerolog.Logger) *zerolog.Context {
-	next, id := getSetID(ctx)
+type traceIDKey struct{}
+
+// SetID puts val on the context for use as a tracing ID. If a tracing ID
+// already existed on the input ctx, then it's replaced. Use the [GetID]
+// function to retrieve the tracing ID.
+func SetID(ctx context.Context, val string) context.Context {
+	return context.WithValue(ctx, traceIDKey{}, val)
+}
+
+// GetID fetches a tracing ID value from context if it's found. If it's not
+// found, then the tracing ID is empty. Use the [SetID] function to place a
+// tracing ID on to the context.
+func GetID(ctx context.Context) (id string, found bool) {
+	id, found = ctx.Value(traceIDKey{}).(string)
+	return
+}
+
+func newZerologCtxWithID(ctx context.Context, lgr *zerolog.Logger, id string) *zerolog.Context {
+	next, nextID := getSetID(ctx, id)
 	next = lgr.WithContext(next)
-	ztx := zerolog.Ctx(next).With().Str("x_trace_id", id)
+	ztx := zerolog.Ctx(next).With().Str("x_trace_id", nextID)
 	return &ztx
 }
