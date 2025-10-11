@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"time"
 
@@ -14,7 +15,11 @@ import (
 func ExampleConfigure() {
 	logg.Configure(
 		os.Stderr,
-		map[string]string{"branch_name": "main", "build_time": "20060102T150415", "commit_hash": "deadbeef"},
+		[]slog.Attr{
+			slog.String("branch_name", "main"),
+			slog.String("build_time", "20060102T150415"),
+			slog.String("commit_hash", "deadbeef"),
+		},
 	)
 }
 
@@ -24,7 +29,11 @@ func ExampleConfigure_multipleSinks() {
 
 	logg.Configure(
 		os.Stderr,
-		map[string]string{"branch_name": "main", "build_time": "20060102T150415", "commit_hash": "1337d00d"},
+		[]slog.Attr{
+			slog.String("branch_name", "main"),
+			slog.String("build_time", "20060102T150415"),
+			slog.String("commit_hash", "deadbeef"),
+		},
 		file,
 	)
 }
@@ -40,7 +49,11 @@ func ExampleConfigure_possiblyUnintendedConfiguration() {
 	var someSocket io.Writer
 	logg.Configure(
 		someSocket,
-		map[string]string{"branch_name": "main", "build_time": "20060102T150415", "commit_hash": "feedface"},
+		[]slog.Attr{
+			slog.String("branch_name", "main"),
+			slog.String("build_time", "20060102T150415"),
+			slog.String("commit_hash", "deadbeef"),
+		},
 	)
 
 	// Whoops, these logging event will continue to go to standard error. This
@@ -98,11 +111,11 @@ func ExampleNew_noFields() {
 func ExampleNew_multipleSinks() {
 	var file, socket io.Writer
 
-	dataFields := map[string]interface{}{
-		"bravo":   true,
-		"delta":   234 * time.Millisecond,
-		"foxtrot": float64(1.23),
-		"india":   10,
+	dataFields := []slog.Attr{
+		slog.Bool("bravo", true),
+		slog.Duration("delta", 234*time.Millisecond),
+		slog.Float64("foxtrot", 1.23),
+		slog.Int("india", 10),
 	}
 	logger := logg.New(dataFields, file, socket)
 
@@ -114,11 +127,11 @@ func ExampleNew_multipleSinks() {
 
 // Initialize the logger with data fields.
 func ExampleNew_fields() {
-	logger := logg.New(map[string]interface{}{
-		"bravo":   true,
-		"delta":   234 * time.Millisecond,
-		"foxtrot": float64(1.23),
-		"india":   10,
+	logger := logg.New([]slog.Attr{
+		slog.Bool("bravo", true),
+		slog.Duration("delta", 234*time.Millisecond),
+		slog.Float64("foxtrot", 1.23),
+		slog.Int("india", 10),
 	})
 
 	// do stuff ...
@@ -143,13 +156,13 @@ func ExampleEmitter_withID() {
 	// Create a new context to ensure the same tracing ID on each subsequent
 	// tracing event.
 	ctxA := logg.SetID(context.Background(), "AAA")
-	alfa := logg.New(map[string]interface{}{"a": "A"}).WithID(ctxA)
+	alfa := logg.New([]slog.Attr{slog.String("a", "A")}).WithID(ctxA)
 	// These events have a tracing ID AAA.
 	alfa.Infof("altoona")
 	alfa.Infof("alice in wonderland")
 
 	// Use the same context in another Emitter.
-	bravo := logg.New(map[string]interface{}{"B": "B"}).WithID(ctxA)
+	bravo := logg.New([]slog.Attr{slog.String("b", "B")}).WithID(ctxA)
 	// These events have a tracing ID AAA.
 	bravo.Infof("brazil")
 	bravo.Infof("bilbo baggins")
@@ -157,7 +170,7 @@ func ExampleEmitter_withID() {
 	// Deriving a new context with its own tracing ID and passing it to another
 	// Emitter yields the tracing ID from the derived context.
 	anotherCtx := logg.SetID(ctxA, "CCC")
-	charlie := logg.New(map[string]interface{}{"C": "C"}).WithID(anotherCtx)
+	charlie := logg.New([]slog.Attr{slog.String("c", "C")}).WithID(anotherCtx)
 	// These events have a tracing ID CCC.
 	charlie.Infof("chicago")
 	charlie.Infof("chewbacca")

@@ -10,36 +10,36 @@ import (
 	"strings"
 )
 
-// A logger emits events with preset fields.
+// A logger emits events with preset versioning info and attrs data.
 type logger struct {
 	lgr        *slog.Logger
 	versioning []slog.Attr
 	id         string
-	fields     map[string]interface{}
+	attrs      []slog.Attr
 }
 
 // New initializes a logger Emitter type and configures it so each event
-// emission outputs fields at the data key. If sinks is empty or the first sink
+// emission outputs attrs at the data key. If sinks is empty or the first sink
 // is nil, then it writes to the same destination as the root logger. If sinks
 // is non-empty then it duplicates the root logger and writes to sinks.
-func New(fields map[string]interface{}, sinks ...io.Writer) Emitter {
+func New(attrs []slog.Attr, sinks ...io.Writer) Emitter {
 	if len(sinks) < 1 || sinks[0] == nil {
 		sinks = []io.Writer{defaultSink}
 	}
 	m := io.MultiWriter(sinks...)
 	lvl := cmp.Or(os.Getenv(loggLevelEnvVar), slog.LevelInfo.String())
 	lgr := newSlogger(m, lvl)
-	return newLogger(lgr, rootLogger().versioning, "", fields)
+	return newLogger(lgr, rootLogger().versioning, "", attrs...)
 }
 
 func (l *logger) Errorf(err error, msg string, args ...interface{}) {
 	m := fmt.Sprintf(msg, args...)
-	log(context.Background(), l, slog.LevelError, err, m, l.id, l.fields)
+	log(context.Background(), l, slog.LevelError, err, m, l.id, l.attrs...)
 }
 
 func (l *logger) Infof(msg string, args ...interface{}) {
 	m := fmt.Sprintf(msg, args...)
-	log(context.Background(), l, slog.LevelInfo, nil, m, l.id, l.fields)
+	log(context.Background(), l, slog.LevelInfo, nil, m, l.id, l.attrs...)
 }
 
 func (l *logger) WithID(ctx context.Context) Emitter {
@@ -48,24 +48,23 @@ func (l *logger) WithID(ctx context.Context) Emitter {
 }
 
 // WithData prepares a logging entry and captures any event-specific data in
-// fields. Call the Emitter methods to write to the log.
-func (l *logger) WithData(fields map[string]interface{}) Emitter {
+// attrs. Call the Emitter methods to write to the log.
+func (l *logger) WithData(attrs []slog.Attr) Emitter {
 	versioning := rootLogger().versioning
 
-	// use original l.fields as a base, but let the input fields override any
+	// use original l.attrs as a base, but let the input attrs override any
 	// conflict keys for the output event.
-	tmp := shallowDupe(l.fields)
-	mergedFields := mergeFields(tmp, fields)
+	mergedAttrs := mergeAttrs(l.attrs, attrs)
 
-	return newLogger(l.lgr, versioning, l.id, mergedFields)
+	return newLogger(l.lgr, versioning, l.id, mergedAttrs...)
 }
 
-func newLogger(lgr *slog.Logger, versioning []slog.Attr, id string, fields map[string]any) *logger {
+func newLogger(lgr *slog.Logger, versioning []slog.Attr, id string, attrs ...slog.Attr) *logger {
 	out := logger{
 		lgr:        lgr,
 		versioning: versioning,
 		id:         id,
-		fields:     fields,
+		attrs:      attrs,
 	}
 
 	return &out

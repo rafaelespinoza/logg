@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rafaelespinoza/logg"
 )
@@ -22,7 +24,7 @@ func init() {
 
 	// versioningData should be present in all subsequent log entries; not only
 	// from package-level functions, but also from Emitter events.
-	versioningData := map[string]string{"branch_name": "dev", "build_time": "now"}
+	versioningData := []slog.Attr{slog.String("branch_name", "dev"), slog.String("build_time", "now")}
 	logg.Configure(pkgSink, versioningData)
 }
 
@@ -50,11 +52,11 @@ func TestLogg(t *testing.T) {
 		// test logger
 		t.Run("from logger", func(t *testing.T) {
 			sink := newDataSink()
-			logger := logg.New(map[string]interface{}{"sierra": "nevada"}, sink)
+			logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
 
 			logger.Infof("hello")
 
-			testLogg(t, sink.Raw(), nil, "hello", false, "", map[string]interface{}{"sierra": "nevada"})
+			testLogg(t, sink.Raw(), nil, "hello", false, "", []slog.Attr{slog.String("sierra", "nevada")})
 			if t.Failed() {
 				t.Logf("%s", sink.Raw())
 			}
@@ -62,25 +64,25 @@ func TestLogg(t *testing.T) {
 
 		t.Run("from logger.WithData", func(t *testing.T) {
 			sink := newDataSink()
-			logger := logg.New(map[string]interface{}{"sierra": "nevada"}, sink)
+			logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
 
-			logger.WithData(map[string]interface{}{
-				"bravo":   true,
-				"delta":   234,
-				"foxtrot": float64(1.23),
-				"india":   10,
+			logger.WithData([]slog.Attr{
+				slog.Bool("bravo", true),
+				slog.String("delta", (234 * time.Millisecond).String()),
+				slog.Float64("foxtrot", 1.23),
+				slog.Int("india", 10),
 			}).Infof("goodbye")
 
-			testLogg(t, sink.Raw(), nil, "goodbye", false, "", map[string]interface{}{
+			testLogg(t, sink.Raw(), nil, "goodbye", false, "", []slog.Attr{
 				// The types of expected values are changed due to the way
 				// encoding/json unmarshals interface{} values. This is far from
 				// perfect, so at this point, considering the field tests to be
 				// "close enough".
-				"bravo":   true,
-				"delta":   float64(234), // corresponding input is a time.Duration.
-				"foxtrot": float64(1.23),
-				"india":   float64(10), // corresponding input is an int.
-				"sierra":  "nevada",
+				slog.Bool("bravo", true),
+				slog.String("delta", (234 * time.Millisecond).String()),
+				slog.Float64("foxtrot", 1.23),
+				slog.Int("india", 10),
+				slog.String("sierra", "nevada"),
 			})
 			if t.Failed() {
 				t.Logf("%s", sink.Raw())
@@ -90,14 +92,14 @@ func TestLogg(t *testing.T) {
 		t.Run("another event from same logger can have its own fields", func(t *testing.T) {
 			// setup
 			sink := newDataSink()
-			logger := logg.New(map[string]interface{}{"sierra": "nevada"}, sink)
-			logger.WithData(map[string]interface{}{"bravo": true}).Infof("goodbye")
+			logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
+			logger.WithData([]slog.Attr{slog.Bool("bravo", true)}).Infof("goodbye")
 
-			logger.WithData(map[string]interface{}{"zulu": true}).Infof("goodbye again")
+			logger.WithData([]slog.Attr{slog.Bool("zulu", true)}).Infof("goodbye again")
 
-			testLogg(t, sink.Raw(), nil, "goodbye again", false, "", map[string]interface{}{
-				"zulu":   true,
-				"sierra": "nevada",
+			testLogg(t, sink.Raw(), nil, "goodbye again", false, "", []slog.Attr{
+				slog.Bool("zulu", true),
+				slog.String("sierra", "nevada"),
 			})
 			if t.Failed() {
 				t.Logf("%s", sink.Raw())
@@ -108,11 +110,11 @@ func TestLogg(t *testing.T) {
 	t.Run("Error", func(t *testing.T) {
 		t.Run("from logger", func(t *testing.T) {
 			sink := newDataSink()
-			logger := logg.New(map[string]interface{}{"sierra": "nevada"}, sink)
+			logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
 
 			logger.Errorf(errors.New("hello"), "logger error")
 
-			testLogg(t, sink.Raw(), errors.New("hello"), "logger error", false, "", map[string]interface{}{"sierra": "nevada"})
+			testLogg(t, sink.Raw(), errors.New("hello"), "logger error", false, "", []slog.Attr{slog.String("sierra", "nevada")})
 			if t.Failed() {
 				t.Logf("%s", sink.Raw())
 			}
@@ -120,25 +122,25 @@ func TestLogg(t *testing.T) {
 
 		t.Run("from logger.WithData", func(t *testing.T) {
 			sink := newDataSink()
-			logger := logg.New(map[string]interface{}{"sierra": "nevada"}, sink)
+			logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
 
-			logger.WithData(map[string]interface{}{
-				"bravo":   false,
-				"delta":   432,
-				"foxtrot": float64(3.21),
-				"india":   100,
+			logger.WithData([]slog.Attr{
+				slog.Bool("bravo", false),
+				slog.String("delta", (432 * time.Millisecond).String()),
+				slog.Float64("foxtrot", 3.21),
+				slog.Int("india", 100),
 			}).Errorf(errors.New("goodbye"), "event error")
 
-			testLogg(t, sink.Raw(), errors.New("goodbye"), "event error", false, "", map[string]interface{}{
+			testLogg(t, sink.Raw(), errors.New("goodbye"), "event error", false, "", []slog.Attr{
 				// The types of expected values are changed due to the way
 				// encoding/json unmarshals interface{} values. This is far from
 				// perfect, so at this point, considering the field tests to be
 				// "close enough".
-				"bravo":   false,
-				"delta":   float64(432), // corresponding input is a time.Duration.
-				"foxtrot": float64(3.21),
-				"india":   float64(100), // corresponding input is an int.
-				"sierra":  "nevada",
+				slog.Bool("bravo", false),
+				slog.String("delta", (432 * time.Millisecond).String()),
+				slog.Float64("foxtrot", 3.21),
+				slog.Int("india", 100),
+				slog.String("sierra", "nevada"),
 			})
 			if t.Failed() {
 				t.Logf("%s", sink.Raw())
@@ -148,14 +150,14 @@ func TestLogg(t *testing.T) {
 		t.Run("another event from same logger can have its own fields", func(t *testing.T) {
 			// setup
 			sink := newDataSink()
-			logger := logg.New(map[string]interface{}{"sierra": "nevada"}, sink)
-			logger.WithData(map[string]interface{}{"bravo": true}).Infof("goodbye")
+			logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
+			logger.WithData([]slog.Attr{slog.Bool("bravo", true)}).Infof("goodbye")
 
-			logger.WithData(map[string]interface{}{"zulu": true}).Errorf(errors.New("bye"), "goodbye again")
+			logger.WithData([]slog.Attr{slog.Bool("zulu", true)}).Errorf(errors.New("bye"), "goodbye again")
 
-			testLogg(t, sink.Raw(), errors.New("bye"), "goodbye again", false, "", map[string]interface{}{
-				"zulu":   true,
-				"sierra": "nevada",
+			testLogg(t, sink.Raw(), errors.New("bye"), "goodbye again", false, "", []slog.Attr{
+				slog.Bool("zulu", true),
+				slog.String("sierra", "nevada"),
 			})
 			if t.Failed() {
 				t.Logf("%s", sink.Raw())
@@ -170,15 +172,18 @@ func TestWithID(t *testing.T) {
 		ctx := logg.SetID(context.Background(), "logger_id")
 		sink := newDataSink()
 
-		logger := logg.New(map[string]interface{}{"sierra": "nevada"}, sink).WithID(ctx)
+		logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink).WithID(ctx)
 		logger.Infof("logger with id")
-		testLogg(t, sink.Raw(), nil, "logger with id", true, "logger_id", map[string]interface{}{"sierra": "nevada"})
+		testLogg(t, sink.Raw(), nil, "logger with id", true, "logger_id", []slog.Attr{slog.String("sierra", "nevada")})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
 		}
 
-		logger.WithData(map[string]interface{}{"bravo": true}).Infof("event with id")
-		testLogg(t, sink.Raw(), nil, "event with id", true, "logger_id", map[string]interface{}{"bravo": true, "sierra": "nevada"})
+		logger.WithData([]slog.Attr{slog.Bool("bravo", true)}).Infof("event with id")
+		testLogg(t, sink.Raw(), nil, "event with id", true, "logger_id", []slog.Attr{
+			slog.String("sierra", "nevada"),
+			slog.Bool("bravo", true),
+		})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
 		}
@@ -189,18 +194,18 @@ func TestWithID(t *testing.T) {
 
 		sink := newDataSink()
 
-		logger := logg.New(map[string]interface{}{"sierra": "nevada"}, sink)
+		logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
 		logger.Infof("logger without id")
-		testLogg(t, sink.Raw(), nil, "logger without id", false, "", map[string]interface{}{"sierra": "nevada"})
+		testLogg(t, sink.Raw(), nil, "logger without id", false, "", []slog.Attr{slog.String("sierra", "nevada")})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
 		}
 
 		ctx := logg.SetID(context.Background(), "event_id")
-		logger.WithData(map[string]interface{}{"bravo": true}).WithID(ctx).Infof("event with own id")
-		testLogg(t, sink.Raw(), nil, "event with own id", true, "event_id", map[string]interface{}{
-			"bravo":  true,
-			"sierra": "nevada",
+		logger.WithData([]slog.Attr{slog.Bool("bravo", true)}).WithID(ctx).Infof("event with own id")
+		testLogg(t, sink.Raw(), nil, "event with own id", true, "event_id", []slog.Attr{
+			slog.Bool("bravo", true),
+			slog.String("sierra", "nevada"),
 		})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
@@ -213,19 +218,19 @@ func TestWithID(t *testing.T) {
 		ctxA := logg.SetID(context.Background(), "logger_id")
 		sink := newDataSink()
 
-		logger := logg.New(map[string]interface{}{"sierra": "nevada"}, sink).WithID(ctxA)
+		logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink).WithID(ctxA)
 		logger.Infof("logger with id")
-		testLogg(t, sink.Raw(), nil, "logger with id", true, "logger_id", map[string]interface{}{"sierra": "nevada"})
+		testLogg(t, sink.Raw(), nil, "logger with id", true, "logger_id", []slog.Attr{slog.String("sierra", "nevada")})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
 		}
 
 		// derive context from previous context, but set another ID.
 		ctxB := logg.SetID(ctxA, "event_id")
-		logger.WithData(map[string]interface{}{"bravo": true}).WithID(ctxB).Infof("event with own id")
-		testLogg(t, sink.Raw(), nil, "event with own id", true, "event_id", map[string]interface{}{
-			"bravo":  true,
-			"sierra": "nevada",
+		logger.WithData([]slog.Attr{slog.Bool("bravo", true)}).WithID(ctxB).Infof("event with own id")
+		testLogg(t, sink.Raw(), nil, "event with own id", true, "event_id", []slog.Attr{
+			slog.Bool("bravo", true),
+			slog.String("sierra", "nevada"),
 		})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
@@ -237,37 +242,37 @@ func TestWithData(t *testing.T) {
 	t.Run("allows input fields to replace existing fields", func(t *testing.T) {
 		sink := newDataSink()
 
-		logger := logg.New(map[string]interface{}{"foo": "alfa"}, sink)
+		logger := logg.New([]slog.Attr{slog.String("foo", "alfa"), slog.Bool("bar", true)}, sink)
 		logger.Infof("a")
-		testLogg(t, sink.Raw(), nil, "a", false, "", map[string]interface{}{"foo": "alfa"})
+		testLogg(t, sink.Raw(), nil, "a", false, "", []slog.Attr{slog.String("foo", "alfa"), slog.Bool("bar", true)})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
 		}
 
-		event := logger.WithData(map[string]interface{}{"foo": "bravo"})
+		event := logger.WithData([]slog.Attr{slog.String("foo", "bravo")})
 		event.Infof("b")
-		testLogg(t, sink.Raw(), nil, "b", false, "", map[string]interface{}{"foo": "bravo"})
+		testLogg(t, sink.Raw(), nil, "b", false, "", []slog.Attr{slog.String("foo", "bravo"), slog.Bool("bar", true)})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
 		}
 
-		otherEvent := event.WithData(map[string]interface{}{"foo": "charlie"})
+		otherEvent := event.WithData([]slog.Attr{slog.Bool("bar", false)})
 		otherEvent.Infof("c")
-		testLogg(t, sink.Raw(), nil, "c", false, "", map[string]interface{}{"foo": "charlie"})
+		testLogg(t, sink.Raw(), nil, "c", false, "", []slog.Attr{slog.String("foo", "bravo"), slog.Bool("bar", false)})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
 		}
 
 		// check that first logger's original data hasn't changed unexpectedly.
 		logger.Infof("d")
-		testLogg(t, sink.Raw(), nil, "d", false, "", map[string]interface{}{"foo": "alfa"})
+		testLogg(t, sink.Raw(), nil, "d", false, "", []slog.Attr{slog.String("foo", "alfa"), slog.Bool("bar", true)})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
 		}
 
 		// check that first event's original data hasn't changed unexpectedly.
 		event.Infof("e")
-		testLogg(t, sink.Raw(), nil, "e", false, "", map[string]interface{}{"foo": "bravo"})
+		testLogg(t, sink.Raw(), nil, "e", false, "", []slog.Attr{slog.String("foo", "bravo"), slog.Bool("bar", true)})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
 		}
@@ -276,9 +281,9 @@ func TestWithData(t *testing.T) {
 	t.Run("when initial state of fields is nil", func(t *testing.T) {
 		sink := newDataSink()
 
-		logger := logg.New(nil, sink).WithData(map[string]interface{}{"foo": "alfa"})
+		logger := logg.New(nil, sink).WithData([]slog.Attr{slog.String("foo", "alfa")})
 		logger.Infof("a")
-		testLogg(t, sink.Raw(), nil, "a", false, "", map[string]interface{}{"foo": "alfa"})
+		testLogg(t, sink.Raw(), nil, "a", false, "", []slog.Attr{slog.String("foo", "alfa")})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
 		}
@@ -287,16 +292,16 @@ func TestWithData(t *testing.T) {
 	t.Run("when passed nil", func(t *testing.T) {
 		sink := newDataSink()
 
-		logger := logg.New(map[string]interface{}{"foo": "alfa"}, sink).WithData(nil)
+		logger := logg.New([]slog.Attr{slog.String("foo", "alfa")}, sink).WithData(nil)
 		logger.Infof("a")
-		testLogg(t, sink.Raw(), nil, "a", false, "", map[string]interface{}{"foo": "alfa"})
+		testLogg(t, sink.Raw(), nil, "a", false, "", []slog.Attr{slog.String("foo", "alfa")})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
 		}
 	})
 }
 
-func testLogg(t *testing.T, in []byte, expErr error, expMessage string, expTraceIDKey bool, expTraceIDVal string, expData map[string]interface{}) {
+func testLogg(t *testing.T, in []byte, expErr error, expMessage string, expTraceIDKey bool, expTraceIDVal string, expData []slog.Attr) {
 	t.Helper()
 
 	const (
@@ -396,29 +401,16 @@ func testLogg(t *testing.T, in []byte, expErr error, expMessage string, expTrace
 
 	t.Run(dataKey+" field", func(t *testing.T) {
 		if expData != nil {
-			var parsedData map[string]interface{}
+			var parsedData map[string]any
 
 			if val, ok := parsedRoot[dataKey]; !ok {
 				t.Fatalf("expected to have key %q", dataKey)
-			} else if parsedData, ok = val.(map[string]interface{}); !ok {
-				t.Fatalf("expected %q to be a %T", dataKey, make(map[string]interface{}))
+			} else if parsedData, ok = val.(map[string]any); !ok {
+				t.Fatalf("expected %q to be a %T", dataKey, make(map[string]any))
 			}
 
-			if len(parsedData) != len(expData) {
-				t.Errorf("wrong number of keys; got %d, expected %d", len(parsedData), len(expData))
-			}
-
-			for expKey, expVal := range expData {
-				got, ok := parsedData[expKey]
-				if !ok {
-					t.Errorf("expected to have subkey [%q][%q]", dataKey, expKey)
-				} else if got != expVal {
-					t.Errorf(
-						"wrong value at [%q][%q]; got %v (type %T), expected %v (type %T)",
-						dataKey, expKey, got, got, expVal, expVal,
-					)
-				}
-			}
+			parsedGroupAttrs := parseGroupAttrs(t, parsedData)
+			testAttrs(t, parsedGroupAttrs, expData)
 		} else {
 			val, ok := parsedRoot[dataKey]
 			if ok {
@@ -426,6 +418,101 @@ func testLogg(t *testing.T, in []byte, expErr error, expMessage string, expTrace
 			}
 		}
 	})
+}
+
+// parseGroupAttrs takes the map representing the log group and approximates its
+// contents into a []slog.Attr.
+func parseGroupAttrs(t *testing.T, parsedGroupJSON map[string]any) []slog.Attr {
+	t.Helper()
+
+	out := make([]slog.Attr, 0, len(parsedGroupJSON))
+
+	for key, val := range parsedGroupJSON {
+		var value slog.Value
+		switch v := val.(type) {
+		case string:
+			value = slog.StringValue(v)
+		case float64: // JSON numbers are always unmarshaled as float64
+			// Test logs of kind slog.KindDuration would look like a float64,
+			// and would be the number of nanoseconds. Those cases are not
+			// accounted for here.
+			if v == float64(int(v)) {
+				value = slog.IntValue(int(v))
+			} else {
+				value = slog.Float64Value(v)
+			}
+		case bool:
+			value = slog.BoolValue(v)
+		case time.Time:
+			value = slog.TimeValue(v)
+		// add more cases as needed (ie: []any for slices)
+		default:
+			value = slog.AnyValue(v)
+		}
+
+		out = append(out, slog.Attr{Key: key, Value: value})
+	}
+
+	return out
+}
+
+func testAttrs(t *testing.T, actual, expected []slog.Attr) {
+	t.Helper()
+
+	if len(actual) != len(expected) {
+		t.Errorf("wrong number of items; got %d, expected %d", len(actual), len(expected))
+	}
+
+	// Collect data to compare.
+	actualKeyVals, expectedKeyVals := make(map[string]slog.Attr, len(actual)), make(map[string]slog.Attr, len(expected))
+	var found bool
+	for i := range actual {
+		attr := actual[i]
+		if _, found = actualKeyVals[attr.Key]; found {
+			t.Fatalf("unexpected duplicate key in actual result %q", attr.Key)
+		}
+		actualKeyVals[attr.Key] = attr
+	}
+	for i := range expected {
+		attr := expected[i]
+		if _, found = expectedKeyVals[attr.Key]; found {
+			t.Fatalf("unexpected duplicate key in expected result %q", attr.Key)
+		}
+		expectedKeyVals[attr.Key] = attr
+	}
+
+	// Compare keys and values.
+	for i := range actual {
+		actualAttr := actual[i]
+		key := actualAttr.Key
+		expectedAttr, found := expectedKeyVals[key]
+		if !found {
+			t.Errorf("unexpected key %q in actual result", key)
+			continue
+		}
+		if !actualAttr.Equal(expectedAttr) {
+			t.Errorf(
+				"actual value at key %q does not equal expected value; got %v, expected %v",
+				key, actualAttr.Value, expectedAttr.Value,
+			)
+		}
+	}
+
+	for i := range expected {
+		expectedAttr := expected[i]
+		key := expectedAttr.Key
+		actualAttr, found := actualKeyVals[key]
+		if !found {
+			t.Errorf("did not find expected key %q in actual result", key)
+			continue
+		}
+		if !actualAttr.Equal(expectedAttr) {
+			t.Errorf(
+				"actual value at key %q does not equal expected value; got %v, expected %v",
+				key, actualAttr.Value, expectedAttr.Value,
+			)
+		}
+	}
 }
 
 func newDataSink() *DataSink {

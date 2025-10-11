@@ -2,6 +2,7 @@ package logg_test
 
 import (
 	"errors"
+	"log/slog"
 	"testing"
 
 	"github.com/rafaelespinoza/logg"
@@ -13,12 +14,12 @@ func TestLogger(t *testing.T) {
 
 	t.Run("no sinks", func(t *testing.T) {
 		logg.New(nil).Infof(t.Name())
-		logg.New(map[string]interface{}{"a": "b"}).Infof(t.Name())
+		logg.New([]slog.Attr{slog.String("a", "b")}).Infof(t.Name())
 	})
 
 	t.Run("empty sinks", func(t *testing.T) {
 		logg.New(nil, nil).Infof(t.Name())
-		logg.New(map[string]interface{}{"a": "b"}, nil).Infof(t.Name())
+		logg.New([]slog.Attr{slog.String("a", "b")}, nil).Infof(t.Name())
 	})
 
 	t.Run("one sink", func(t *testing.T) {
@@ -29,7 +30,7 @@ func TestLogger(t *testing.T) {
 		}
 
 		bravo := newDataSink()
-		logg.New(map[string]interface{}{"a": "b"}, bravo).Infof(t.Name())
+		logg.New([]slog.Attr{slog.String("a", "b")}, bravo).Infof(t.Name())
 		if len(bravo.Raw()) < 1 {
 			t.Error("did not write data")
 		}
@@ -46,7 +47,7 @@ func TestLogger(t *testing.T) {
 		}
 
 		charlie, delta := newDataSink(), newDataSink()
-		logg.New(map[string]interface{}{"a": "b"}, charlie, delta).Infof(t.Name())
+		logg.New([]slog.Attr{slog.String("a", "b")}, charlie, delta).Infof(t.Name())
 		if len(charlie.Raw()) < 1 {
 			t.Error("did not write data")
 		}
