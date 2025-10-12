@@ -2,6 +2,7 @@ package logg_test
 
 import (
 	"errors"
+	"io"
 	"log/slog"
 	"testing"
 
@@ -12,25 +13,20 @@ func TestLogger(t *testing.T) {
 	// These tests mostly check that constructing a Logger with various input
 	// combinations can work without panicking on invalid memory address refs.
 
-	t.Run("no sinks", func(t *testing.T) {
-		logg.New(nil).Info(t.Name())
-		logg.New([]slog.Attr{slog.String("a", "b")}).Info(t.Name())
-	})
-
 	t.Run("empty sinks", func(t *testing.T) {
-		logg.New(nil, nil).Info(t.Name())
-		logg.New([]slog.Attr{slog.String("a", "b")}, nil).Info(t.Name())
+		logg.New(nil).Info(t.Name())
+		logg.New(nil, slog.String("a", "b")).Info(t.Name())
 	})
 
 	t.Run("one sink", func(t *testing.T) {
-		alfa := newDataSink()
-		logg.New(nil, alfa).Info(t.Name())
+		alfa, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
+		logg.New(handler).Info(t.Name())
 		if len(alfa.Raw()) < 1 {
 			t.Error("did not write data")
 		}
 
-		bravo := newDataSink()
-		logg.New([]slog.Attr{slog.String("a", "b")}, bravo).Info(t.Name())
+		bravo, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
+		logg.New(handler, slog.String("a", "b")).Info(t.Name())
 		if len(bravo.Raw()) < 1 {
 			t.Error("did not write data")
 		}
@@ -38,7 +34,8 @@ func TestLogger(t *testing.T) {
 
 	t.Run("more sinks", func(t *testing.T) {
 		alfa, bravo := newDataSink(), newDataSink()
-		logg.New(nil, alfa, bravo).Info(t.Name())
+		handlerAB := slog.NewJSONHandler(io.MultiWriter(alfa, bravo), &slog.HandlerOptions{Level: slog.LevelInfo})
+		logg.New(handlerAB).Info(t.Name())
 		if len(alfa.Raw()) < 1 {
 			t.Error("did not write data")
 		}
@@ -47,7 +44,8 @@ func TestLogger(t *testing.T) {
 		}
 
 		charlie, delta := newDataSink(), newDataSink()
-		logg.New([]slog.Attr{slog.String("a", "b")}, charlie, delta).Info(t.Name())
+		handlerCD := slog.NewJSONHandler(io.MultiWriter(charlie, delta), &slog.HandlerOptions{Level: slog.LevelInfo})
+		logg.New(handlerCD, slog.String("a", "b")).Info(t.Name())
 		if len(charlie.Raw()) < 1 {
 			t.Error("did not write data")
 		}
@@ -57,62 +55,46 @@ func TestLogger(t *testing.T) {
 	})
 
 	t.Run("log level set to INFO", func(t *testing.T) {
-		t.Setenv("LOGG_LEVEL", "INFO")
+		const level = slog.LevelInfo
+		sink, handler := newDataSinkAndJSONHandler(level)
 
-		alfa := newDataSink()
-		logg.New(nil, alfa).Info(t.Name())
-		if len(alfa.Raw()) < 1 {
+		logg.New(handler).Info(t.Name())
+		if len(sink.Raw()) < 1 {
 			t.Error("did not write data")
 		}
 
-		logg.New(nil, alfa).Error(errors.New("test"), t.Name())
-		if len(alfa.Raw()) < 1 {
+		logg.New(handler).Error(errors.New("test"), t.Name())
+		if len(sink.Raw()) < 1 {
 			t.Error("did not write data")
 		}
 	})
 
 	t.Run("log level set to WARN", func(t *testing.T) {
-		t.Setenv("LOGG_LEVEL", "WARN")
+		const level = slog.LevelWarn
+		sink, handler := newDataSinkAndJSONHandler(level)
 
-		alfa := newDataSink()
-		logg.New(nil, alfa).Info(t.Name())
-		if len(alfa.Raw()) > 0 {
+		logg.New(handler).Info(t.Name())
+		if len(sink.Raw()) > 0 {
 			t.Error("unexpected data written for current logging level")
 		}
 
-		logg.New(nil, alfa).Error(errors.New("test"), t.Name())
-		if len(alfa.Raw()) < 1 {
+		logg.New(handler).Error(errors.New("test"), t.Name())
+		if len(sink.Raw()) < 1 {
 			t.Error("did not write data")
 		}
 	})
 
 	t.Run("log level set to ERROR", func(t *testing.T) {
-		t.Setenv("LOGG_LEVEL", "ERROR")
+		const level = slog.LevelError
+		sink, handler := newDataSinkAndJSONHandler(level)
 
-		alfa := newDataSink()
-		logg.New(nil, alfa).Info(t.Name())
-		if len(alfa.Raw()) > 0 {
+		logg.New(handler).Info(t.Name())
+		if len(sink.Raw()) > 0 {
 			t.Error("unexpected data written for current logging level")
 		}
 
-		logg.New(nil, alfa).Error(errors.New("test"), t.Name())
-		if len(alfa.Raw()) < 1 {
-			t.Error("did not write data")
-		}
-	})
-
-	t.Run("log level set to unknown logging level", func(t *testing.T) {
-		// Check that the library works despite unknown setting.
-		t.Setenv("LOGG_LEVEL", "UNKNOWN")
-
-		alfa := newDataSink()
-		logg.New(nil, alfa).Info(t.Name())
-		if len(alfa.Raw()) < 1 {
-			t.Error("did not write data")
-		}
-
-		logg.New(nil, alfa).Error(errors.New("test"), t.Name())
-		if len(alfa.Raw()) < 1 {
+		logg.New(handler).Error(errors.New("test"), t.Name())
+		if len(sink.Raw()) < 1 {
 			t.Error("did not write data")
 		}
 	})

@@ -11,24 +11,24 @@
 [![](https://pkg.go.dev/badge/github.com/rafaelespinoza/logg)](https://pkg.go.dev/github.com/rafaelespinoza/logg)
 [![codecov](https://codecov.io/gh/rafaelespinoza/logg/branch/main/graph/badge.svg?token=GFUSTO55PY)](https://codecov.io/gh/rafaelespinoza/logg)
 
-Package logg is merely a wrapper around log/slog. The primary goal
-is to abstract structured logging for an application while providing a simpler
-API. It's rather opinionated, and offers a limited feature set.
+Package logg is a thin wrapper around log/slog. The primary goal is to abstract
+structured logging for an application while providing a simpler API. It's
+opinionated and offers a limited feature set.
 
 The feature set is:
 
-- provide timestamps
-- tracing ids (user-provided)
+- attribute management, including contextual tracing IDs
+- timestamps
 - leveled logging (only ERROR and INFO severities)
-- emit JSON
+- emit JSON, TEXT (space separated key=value pairs)
+  - pass in a `slog.Handler` for further customization
 
 ## Usage
 
-Call the `Configure` function as early as possible in your application. This
-initializes a "root" logger, which functions like a prototype for all subsequent
-events. Things initialized are the output sinks and an optional "version" field.
-The "version" is just some application versioning metadata, which may be useful
-if you want to know something about your application's source code.
+Call the `Setup` function as early as possible in your application. This
+initializes a root logger, which functions like a prototype for subsequent
+events. Things initialized are the output sinks and an optional "version"
+field. The "version" data appears in its own group for each log event.
 
 Use the `Error`, `Info` functions to log at error, info levels respectively.
 
@@ -50,7 +50,8 @@ See more in the godoc examples.
 
 ## Event shape
 
-These top-level fields are always present:
+When using the `slog.JSONHandler` with default settings, these top-level fields
+are present:
 
 - `time`: string, rfc3339 timestamp.
 - `level`: string, either `"INFO"`, `"ERROR"`
@@ -58,16 +59,20 @@ These top-level fields are always present:
 
 These top-level fields may or may not be present, depending on configuration and
 how the event is emitted:
+- `version`: string key value tuples, optional versioning metadata from your
+  application. Will only be present when this data is passed in to the `Setup`
+  function.
 - `error`: string, an error message. Only when the event is emitted with an
   Error level.
-- `version`: map[string]string, optional versioning metadata from your
-  application. Will only be present when this data is passed in to the
-  `Configure` function.
+- `x_trace_id`: string, a tracing ID. Present when a non-empty value is set on
+  the context passed into the `Emitter.WithID` method.
 - `data`: map[string]any, event-specific fields. Only present when an
   event emitter is constructed with fields via the `New` function and/or is
   passed something to its `WithData` method.
 
 ### Example events
+
+These examples use the default handler in this library, `slog.JSONHandler`.
 
 Info level
 ```
@@ -103,8 +108,7 @@ Error level
 }
 ```
 
-Versioning metadata can be added with the `Configure` function, which must be
-invoked before the first invocation of any library function.
+Versioning metadata can be added with the `Setup` function.
 
 ```
 {

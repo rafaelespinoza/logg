@@ -2,61 +2,50 @@ package logg
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"os"
 	"slices"
-	"strings"
-	"sync"
+	"sync/atomic"
 )
 
-var (
-	root          *logger
-	configureOnce sync.Once
-	defaultSink   = os.Stderr
-)
+var root atomic.Pointer[logger]
 
-const loggLevelEnvVar = "LOGG_LEVEL"
+const libraryMsgPrefix = "logg: "
 
-// Configure initializes a root logger from which all subsequent logging events
-// are derived, provided there are no previous writes to the log.  If there are
-// any log writes before configuration, then all writes will go to os.Stderr by
-// default. So, it's best to call this function as early as possible in your
-// application.
-//
-// Configure will set up a prototype logger to write to w, include version
-// metadata and may optionally write to moreSinks. The output destination(s)
-// cannot be changed once this function is called.
+func init() {
+	defaultOutput := os.Stderr
+	defaultLevel := slog.LevelInfo
+	defaultHandler := slog.NewJSONHandler(defaultOutput, &slog.HandlerOptions{Level: defaultLevel})
+	Setup(defaultHandler)
+}
+
+// Setup initializes a package-level prototype logger from which subsequent logs
+// are based upon. The default settings are to write to os.Stderr at the INFO
+// level in line-delimited JSON format. Top-level functions such as Info and
+// Error use this logger. Loggers created with [New] consider values set in this
+// function as defaults.
 //
 // The version parameter may be empty, but it's recommended to put some metadata
-// here so you can associate an event with the source code version.
-func Configure(w io.Writer, version []slog.Attr, moreSinks ...io.Writer) {
-	configureOnce.Do(func() {
-		sinks := append([]io.Writer{w}, moreSinks...)
-		m := io.MultiWriter(sinks...)
-		lvl := os.Getenv(loggLevelEnvVar)
-		lgr := newSlogger(m, lvl)
-		root = newLogger(lgr, version, "")
+// here so you can associate an event with the source code version. The
+// attributes in version will be part of "version" group for subsequent log
+// events, including those an Emitter created via [New].
+func Setup(h slog.Handler, version ...slog.Attr) {
+	lgr := newSlogger(h, version...)
+	r := newLogger(lgr, version, "")
 
-		if strings.ToUpper(lvl) == "DEBUG" {
-			root.lgr.Debug("configured logger")
-		}
-	})
+	root.Store(r)
+	rootLogger().lgr.Debug(libraryMsgPrefix + "setup root logger")
 }
 
 // Error writes msg to the log at level ERROR and additionally writes err to an
 // error field.
 func Error(err error, msg string, attrs ...slog.Attr) {
-	r := rootLogger()
-	mergedAttrs := mergeAttrs(r.attrs, attrs)
-	log(context.Background(), r, slog.LevelError, err, msg, "", mergedAttrs...)
+	log(context.Background(), rootLogger().lgr, slog.LevelError, err, msg, "", attrs...)
 }
 
 // Info writes msg to the log at level INFO.
 func Info(msg string, attrs ...slog.Attr) {
-	r := rootLogger()
-	mergedAttrs := mergeAttrs(r.attrs, attrs)
-	log(context.Background(), r, slog.LevelInfo, nil, msg, "", mergedAttrs...)
+	log(context.Background(), rootLogger().lgr, slog.LevelInfo, nil, msg, "", attrs...)
 }
 
 // An Emitter writes to the log at info or error levels.
@@ -68,10 +57,7 @@ type Emitter interface {
 }
 
 func rootLogger() *logger {
-	// fall back to default writer unless it's already configured.
-	Configure(defaultSink, nil)
-
-	return root
+	return root.Load()
 }
 
 // mergeAttrs combines and deduplicates the input lists into a new list
@@ -149,15 +135,12 @@ const (
 	dataFieldName = "data"
 )
 
-func log(ctx context.Context, l *logger, v slog.Level, err error, msg string, traceID string, attrs ...slog.Attr) {
-	if !l.lgr.Enabled(ctx, v) {
+func log(ctx context.Context, lgr *slog.Logger, v slog.Level, err error, msg string, traceID string, attrs ...slog.Attr) {
+	if !lgr.Enabled(ctx, v) {
 		return
 	}
 
-	attrsToLog := make([]slog.Attr, 0, 4)
-	if len(l.versioning) > 0 {
-		attrsToLog = append(attrsToLog, slog.GroupAttrs(versionFieldName, l.versioning...))
-	}
+	attrsToLog := make([]slog.Attr, 0, 3)
 
 	if err != nil {
 		attrsToLog = append(attrsToLog, slog.Any(errorFieldName, err))
@@ -173,5 +156,5 @@ func log(ctx context.Context, l *logger, v slog.Level, err error, msg string, tr
 
 	attrsToLog = slices.Clip(attrsToLog)
 
-	l.lgr.LogAttrs(ctx, v, msg, attrsToLog...)
+	lgr.LogAttrs(ctx, v, msg, attrsToLog...)
 }

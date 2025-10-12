@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"os"
 	"strings"
@@ -14,72 +15,157 @@ import (
 	"github.com/rafaelespinoza/logg"
 )
 
-// pkgSink is for capturing log entries emitted from package-level free-standing
-// functions.
-var pkgSink *DataSink
+var pkgSink io.Writer = os.Stderr
 
 func init() {
-	pkgSink = newDataSink()
-	_ = os.Setenv("LOGG_LEVEL", "debug")
+	setupPackageVars(pkgSink)
+}
 
+// setupPackageVars sets up some package-level state expected by most tests.
+// Output for package-level logging functions will be written to w.
+func setupPackageVars(w io.Writer) {
 	// versioningData should be present in all subsequent log entries; not only
 	// from package-level functions, but also from Emitter events.
 	versioningData := []slog.Attr{slog.String("branch_name", "dev"), slog.String("build_time", "now")}
-	logg.Configure(pkgSink, versioningData)
+
+	// Tests rely on parsing the JSON log entries to check for correctness.
+	handler := slog.NewJSONHandler(w, &slog.HandlerOptions{Level: slog.LevelDebug})
+	logg.Setup(handler, versioningData...)
+}
+
+func TestSetup(t *testing.T) {
+	t.Cleanup(func() { setupPackageVars(pkgSink) }) // Restore package-level variables for remainder of test suite.
+
+	t.Run("level INFO", func(t *testing.T) {
+		sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
+		logg.Setup(handler)
+
+		logg.Info(t.Name())
+		if len(sink.Raw()) < 1 {
+			t.Error("did not write data")
+		}
+
+		logg.Error(errors.New("test"), t.Name())
+		if len(sink.Raw()) < 1 {
+			t.Error("did not write data")
+		}
+	})
+
+	t.Run("level WARN", func(t *testing.T) {
+		sink, handler := newDataSinkAndJSONHandler(slog.LevelWarn)
+		logg.Setup(handler)
+
+		logg.Info(t.Name())
+		if len(sink.Raw()) > 0 {
+			t.Error("unexpected data written for current logging level")
+		}
+
+		logg.Error(errors.New("test"), t.Name())
+		if len(sink.Raw()) < 1 {
+			t.Error("did not write data")
+		}
+	})
+
+	t.Run("level ERROR", func(t *testing.T) {
+		sink, handler := newDataSinkAndJSONHandler(slog.LevelError)
+		logg.Setup(handler)
+
+		logg.Info(t.Name())
+		if len(sink.Raw()) > 0 {
+			t.Error("unexpected data written for current logging level")
+		}
+
+		logg.Error(errors.New("test"), t.Name())
+		if len(sink.Raw()) < 1 {
+			t.Error("did not write data")
+		}
+	})
+
+	t.Run("format TEXT", func(t *testing.T) {
+		sink := newDataSink()
+		handler := slog.NewTextHandler(sink, &slog.HandlerOptions{Level: slog.LevelInfo})
+		logg.Setup(handler)
+		logg.Info(t.Name())
+
+		logEntry := sink.Raw()
+		if !strings.Contains(string(logEntry), "TEXT") {
+			t.Fatalf("expected output %q to contain %q", logEntry, "TEXT")
+		}
+
+		// check that it's not logging JSON
+		err := json.Unmarshal(logEntry, &map[string]any{})
+		if !errors.As(err, new(*json.SyntaxError)) {
+			t.Errorf("expected for error (%v) to be a %T", err, json.SyntaxError{})
+		}
+	})
 }
 
 func TestInfo(t *testing.T) {
+	t.Cleanup(func() { setupPackageVars(pkgSink) }) // Restore package-level variables for remainder of test suite.
+
 	t.Run("no attrs", func(t *testing.T) {
+		sink := newDataSink()
+		setupPackageVars(sink)
 		logg.Info("hello info")
 
-		testLogg(t, pkgSink.Raw(), nil, "hello info", false, "", nil)
+		testLogg(t, sink.Raw(), nil, "hello info", false, "", nil)
 		if t.Failed() {
-			t.Logf("%s", pkgSink.Raw())
+			t.Logf("%s", sink.Raw())
 		}
 	})
 
 	t.Run("with attrs", func(t *testing.T) {
+		sink := newDataSink()
+		setupPackageVars(sink)
 		logg.Info("hello info", slog.String("foo", "bar"))
 
-		testLogg(t, pkgSink.Raw(), nil, "hello info", false, "", []slog.Attr{
+		testLogg(t, sink.Raw(), nil, "hello info", false, "", []slog.Attr{
 			slog.String("foo", "bar"),
 		})
 		if t.Failed() {
-			t.Logf("%s", pkgSink.Raw())
+			t.Logf("%s", sink.Raw())
 		}
 	})
 }
 
 func TestError(t *testing.T) {
+	t.Cleanup(func() { setupPackageVars(pkgSink) }) // Restore package-level variables for remainder of test suite.
+
 	t.Run("no attrs", func(t *testing.T) {
+		sink := newDataSink()
+		setupPackageVars(sink)
 		err := errors.New("OOF")
 		logg.Error(err, "hello error")
 
-		testLogg(t, pkgSink.Raw(), err, "hello error", false, "", nil)
+		testLogg(t, sink.Raw(), err, "hello error", false, "", nil)
 		if t.Failed() {
-			t.Logf("%s", pkgSink.Raw())
+			t.Logf("%s", sink.Raw())
 		}
 	})
 
 	t.Run("with attrs", func(t *testing.T) {
+		sink := newDataSink()
+		setupPackageVars(sink)
 		err := errors.New("OOF")
 		logg.Error(err, "hello error", slog.String("bar", "foo"))
 
-		testLogg(t, pkgSink.Raw(), err, "hello error", false, "", []slog.Attr{
+		testLogg(t, sink.Raw(), err, "hello error", false, "", []slog.Attr{
 			slog.String("bar", "foo"),
 		})
 		if t.Failed() {
-			t.Logf("%s", pkgSink.Raw())
+			t.Logf("%s", sink.Raw())
 		}
 	})
 }
 
 func TestLogg(t *testing.T) {
+	setupPackageVars(pkgSink)
+
 	t.Run("Info", func(t *testing.T) {
 		// test logger
 		t.Run("from logger", func(t *testing.T) {
-			sink := newDataSink()
-			logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
+			sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
+			logger := logg.New(handler, slog.String("sierra", "nevada"))
 
 			logger.Info("hello")
 
@@ -90,8 +176,8 @@ func TestLogg(t *testing.T) {
 		})
 
 		t.Run("from logger.WithData", func(t *testing.T) {
-			sink := newDataSink()
-			logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
+			sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
+			logger := logg.New(handler, slog.String("sierra", "nevada"))
 
 			logger.WithData([]slog.Attr{
 				slog.Bool("bravo", true),
@@ -118,8 +204,8 @@ func TestLogg(t *testing.T) {
 
 		t.Run("another event from same logger can have its own fields", func(t *testing.T) {
 			// setup
-			sink := newDataSink()
-			logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
+			sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
+			logger := logg.New(handler, slog.String("sierra", "nevada"))
 			logger.WithData([]slog.Attr{slog.Bool("bravo", true)}).Info("goodbye")
 
 			logger.WithData([]slog.Attr{slog.Bool("zulu", true)}).Info("goodbye again")
@@ -134,8 +220,8 @@ func TestLogg(t *testing.T) {
 		})
 
 		t.Run("with attrs", func(t *testing.T) {
-			sink := newDataSink()
-			logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
+			sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
+			logger := logg.New(handler, slog.String("sierra", "nevada"))
 
 			logger.Info("hello", slog.Int("i", 1))
 
@@ -159,8 +245,8 @@ func TestLogg(t *testing.T) {
 
 	t.Run("Error", func(t *testing.T) {
 		t.Run("from logger", func(t *testing.T) {
-			sink := newDataSink()
-			logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
+			sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
+			logger := logg.New(handler, slog.String("sierra", "nevada"))
 
 			logger.Error(errors.New("hello"), "logger error")
 
@@ -171,8 +257,8 @@ func TestLogg(t *testing.T) {
 		})
 
 		t.Run("from logger.WithData", func(t *testing.T) {
-			sink := newDataSink()
-			logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
+			sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
+			logger := logg.New(handler, slog.String("sierra", "nevada"))
 
 			logger.WithData([]slog.Attr{
 				slog.Bool("bravo", false),
@@ -199,8 +285,8 @@ func TestLogg(t *testing.T) {
 
 		t.Run("another event from same logger can have its own fields", func(t *testing.T) {
 			// setup
-			sink := newDataSink()
-			logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
+			sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
+			logger := logg.New(handler, slog.String("sierra", "nevada"))
 			logger.WithData([]slog.Attr{slog.Bool("bravo", true)}).Info("goodbye")
 
 			logger.WithData([]slog.Attr{slog.Bool("zulu", true)}).Error(errors.New("bye"), "goodbye again")
@@ -215,9 +301,9 @@ func TestLogg(t *testing.T) {
 		})
 
 		t.Run("with attrs", func(t *testing.T) {
-			sink := newDataSink()
 			err := errors.New("test")
-			logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
+			sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
+			logger := logg.New(handler, slog.String("sierra", "nevada"))
 
 			logger.Error(err, "hello", slog.Int("i", 1))
 
@@ -244,9 +330,9 @@ func TestWithID(t *testing.T) {
 	t.Run("logger passes ID to event", func(t *testing.T) {
 		// The logger calls WithID, but the event does not.
 		ctx := logg.SetID(context.Background(), "logger_id")
-		sink := newDataSink()
+		sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
 
-		logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink).WithID(ctx)
+		logger := logg.New(handler, slog.String("sierra", "nevada")).WithID(ctx)
 		logger.Info("logger with id")
 		testLogg(t, sink.Raw(), nil, "logger with id", true, "logger_id", []slog.Attr{slog.String("sierra", "nevada")})
 		if t.Failed() {
@@ -266,9 +352,9 @@ func TestWithID(t *testing.T) {
 	t.Run("event can set its own ID", func(t *testing.T) {
 		// The logger does not call WithID, but the event does.
 
-		sink := newDataSink()
+		sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
 
-		logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
+		logger := logg.New(handler, slog.String("sierra", "nevada"))
 		logger.Info("logger without id")
 		testLogg(t, sink.Raw(), nil, "logger without id", false, "", []slog.Attr{slog.String("sierra", "nevada")})
 		if t.Failed() {
@@ -290,9 +376,9 @@ func TestWithID(t *testing.T) {
 		// The logger calls WithID and so does the event.
 
 		ctxA := logg.SetID(context.Background(), "logger_id")
-		sink := newDataSink()
+		sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
 
-		logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink).WithID(ctxA)
+		logger := logg.New(handler, slog.String("sierra", "nevada")).WithID(ctxA)
 		logger.Info("logger with id")
 		testLogg(t, sink.Raw(), nil, "logger with id", true, "logger_id", []slog.Attr{slog.String("sierra", "nevada")})
 		if t.Failed() {
@@ -314,9 +400,9 @@ func TestWithID(t *testing.T) {
 
 func TestWithData(t *testing.T) {
 	t.Run("allows input fields to replace existing fields", func(t *testing.T) {
-		sink := newDataSink()
+		sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
 
-		logger := logg.New([]slog.Attr{slog.String("foo", "alfa"), slog.Bool("bar", true)}, sink)
+		logger := logg.New(handler, slog.String("foo", "alfa"), slog.Bool("bar", true))
 		logger.Info("a")
 		testLogg(t, sink.Raw(), nil, "a", false, "", []slog.Attr{slog.String("foo", "alfa"), slog.Bool("bar", true)})
 		if t.Failed() {
@@ -353,9 +439,9 @@ func TestWithData(t *testing.T) {
 	})
 
 	t.Run("when initial state of fields is nil", func(t *testing.T) {
-		sink := newDataSink()
+		sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
 
-		logger := logg.New(nil, sink).WithData([]slog.Attr{slog.String("foo", "alfa")})
+		logger := logg.New(handler).WithData([]slog.Attr{slog.String("foo", "alfa")})
 		logger.Info("a")
 		testLogg(t, sink.Raw(), nil, "a", false, "", []slog.Attr{slog.String("foo", "alfa")})
 		if t.Failed() {
@@ -364,9 +450,9 @@ func TestWithData(t *testing.T) {
 	})
 
 	t.Run("when passed nil", func(t *testing.T) {
-		sink := newDataSink()
+		sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
 
-		logger := logg.New([]slog.Attr{slog.String("foo", "alfa")}, sink).WithData(nil)
+		logger := logg.New(handler, slog.String("foo", "alfa")).WithData(nil)
 		logger.Info("a")
 		testLogg(t, sink.Raw(), nil, "a", false, "", []slog.Attr{slog.String("foo", "alfa")})
 		if t.Failed() {
@@ -587,6 +673,14 @@ func testAttrs(t *testing.T, actual, expected []slog.Attr) {
 			)
 		}
 	}
+}
+
+// newDataSinkAndJSONHandler creates a data sink to capture test output and a
+// handler bound to that data sink.
+func newDataSinkAndJSONHandler(lvl slog.Level) (sink *DataSink, handler slog.Handler) {
+	sink = newDataSink()
+	handler = slog.NewJSONHandler(sink, &slog.HandlerOptions{Level: lvl})
+	return
 }
 
 func newDataSink() *DataSink {

@@ -1,12 +1,8 @@
 package logg
 
 import (
-	"cmp"
 	"context"
-	"io"
 	"log/slog"
-	"os"
-	"strings"
 )
 
 // A logger emits events with preset versioning info and attrs data.
@@ -18,27 +14,27 @@ type logger struct {
 }
 
 // New initializes a logger Emitter type and configures it so each event
-// emission outputs attrs at the data key. If sinks is empty or the first sink
-// is nil, then it writes to the same destination as the root logger. If sinks
-// is non-empty then it duplicates the root logger and writes to sinks.
-func New(attrs []slog.Attr, sinks ...io.Writer) Emitter {
-	if len(sinks) < 1 || sinks[0] == nil {
-		sinks = []io.Writer{defaultSink}
+// emission outputs attrs at the "data" key. If h is nil then it uses a
+// default root handler, which is configured via the [Setup] function.
+func New(h slog.Handler, dataAttrs ...slog.Attr) Emitter {
+	defaults := rootLogger()
+	if h == nil {
+		h = defaults.lgr.Handler()
 	}
-	m := io.MultiWriter(sinks...)
-	lvl := cmp.Or(os.Getenv(loggLevelEnvVar), slog.LevelInfo.String())
-	lgr := newSlogger(m, lvl)
-	return newLogger(lgr, rootLogger().versioning, "", attrs...)
+
+	lgr := newSlogger(h, defaults.versioning...)
+	out := newLogger(lgr, defaults.versioning, "", dataAttrs...)
+	return out
 }
 
 func (l *logger) Error(err error, msg string, attrs ...slog.Attr) {
 	mergedAttrs := mergeAttrs(l.attrs, attrs)
-	log(context.Background(), l, slog.LevelError, err, msg, l.id, mergedAttrs...)
+	log(context.Background(), l.lgr, slog.LevelError, err, msg, l.id, mergedAttrs...)
 }
 
 func (l *logger) Info(msg string, attrs ...slog.Attr) {
 	mergedAttrs := mergeAttrs(l.attrs, attrs)
-	log(context.Background(), l, slog.LevelInfo, nil, msg, l.id, mergedAttrs...)
+	log(context.Background(), l.lgr, slog.LevelInfo, nil, msg, l.id, mergedAttrs...)
 }
 
 func (l *logger) WithID(ctx context.Context) Emitter {
@@ -58,37 +54,18 @@ func (l *logger) WithData(attrs []slog.Attr) Emitter {
 	return newLogger(l.lgr, versioning, l.id, mergedAttrs...)
 }
 
-func newLogger(lgr *slog.Logger, versioning []slog.Attr, id string, attrs ...slog.Attr) *logger {
-	out := logger{
+func newLogger(lgr *slog.Logger, versioning []slog.Attr, id string, dataAttrs ...slog.Attr) *logger {
+	return &logger{
 		lgr:        lgr,
 		versioning: versioning,
 		id:         id,
-		attrs:      attrs,
+		attrs:      dataAttrs,
 	}
-
-	return &out
 }
 
-func newSlogger(w io.Writer, level string) *slog.Logger {
-	var lvl slog.Level
-	level = strings.ToUpper(strings.TrimSpace(level))
-	switch level {
-	case slog.LevelDebug.String():
-		lvl = slog.LevelDebug
-	case slog.LevelInfo.String():
-		lvl = slog.LevelInfo
-	case slog.LevelWarn.String():
-		lvl = slog.LevelWarn
-	case slog.LevelError.String():
-		lvl = slog.LevelError
-	default:
-		lvl = slog.LevelInfo
-		slog.Warn("unknown level, setting default", "unknown_level", level, "default", lvl.String())
-	}
-
-	handler := slog.NewJSONHandler(w, &slog.HandlerOptions{Level: lvl})
-
-	lgr := slog.New(handler)
-	lgr.Debug("initialized logger")
+func newSlogger(handler slog.Handler, versioningAttrs ...slog.Attr) *slog.Logger {
+	group := slog.GroupAttrs(versionFieldName, versioningAttrs...)
+	lgr := slog.New(handler).With(group)
+	lgr.Debug(libraryMsgPrefix + "initialized logger")
 	return lgr
 }
