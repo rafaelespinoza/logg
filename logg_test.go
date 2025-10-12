@@ -13,9 +13,37 @@ import (
 	"github.com/rafaelespinoza/logg"
 )
 
+// pkgSink is for capturing log entries emitted from package-level free-standing
+// functions.
+var pkgSink *DataSink
+
 func init() {
+	pkgSink = newDataSink()
 	_ = os.Setenv("LOGG_LEVEL", "debug")
-	logg.Configure(os.Stderr, map[string]string{"foo": "bar"})
+
+	// versioningData should be present in all subsequent log entries; not only
+	// from package-level functions, but also from Emitter events.
+	versioningData := map[string]string{"branch_name": "dev", "build_time": "now"}
+	logg.Configure(pkgSink, versioningData)
+}
+
+func TestInfo(t *testing.T) {
+	logg.Infof("hello info")
+
+	testLogg(t, pkgSink.Raw(), nil, "hello info", false, nil)
+	if t.Failed() {
+		t.Logf("%s", pkgSink.Raw())
+	}
+}
+
+func TestError(t *testing.T) {
+	err := errors.New("OOF")
+	logg.Errorf(err, "hello error")
+
+	testLogg(t, pkgSink.Raw(), err, "hello error", false, nil)
+	if t.Failed() {
+		t.Logf("%s", pkgSink.Raw())
+	}
 }
 
 func TestLogg(t *testing.T) {
@@ -199,83 +227,130 @@ func testLogg(t *testing.T, in []byte, expErr error, expMessage string, expTrace
 	const (
 		errorKey   = "error"
 		messageKey = "message"
+		versionKey = "version"
 		traceIDKey = "x_trace_id"
 		dataKey    = "data"
 	)
 
-	var (
-		parsedRoot map[string]interface{}
-		parsedData map[string]interface{}
-	)
+	var parsedRoot map[string]interface{}
 
 	if err := json.Unmarshal(in, &parsedRoot); err != nil {
 		t.Fatal(err)
 	}
 
-	// test error
-	if expErr != nil {
-		if val, ok := parsedRoot[errorKey]; !ok {
-			t.Errorf("expected to have key %q", messageKey)
-		} else if val.(string) != expErr.Error() {
-			t.Errorf("wrong value at %q; got %q, expected %q", errorKey, val.(string), expErr.Error())
+	t.Run(errorKey+" field", func(t *testing.T) {
+		if expErr != nil {
+			val, ok := parsedRoot[errorKey]
+			if !ok {
+				t.Fatalf("expected to have key %q", errorKey)
+			}
+			if val.(string) != expErr.Error() {
+				t.Errorf("wrong value at %q; got %q, expected %q", errorKey, val.(string), expErr.Error())
+			}
+		} else {
+			val, ok := parsedRoot[errorKey]
+			if ok {
+				t.Errorf("unexpected error at %q; got %v", errorKey, val)
+			}
 		}
-	} else {
-		val, ok := parsedRoot[errorKey]
-		if ok {
-			t.Errorf("unexpected error at %q; got %v", errorKey, val)
-		}
-	}
+	})
 
-	// test message
-	if val, ok := parsedRoot[messageKey]; !ok {
-		t.Errorf("expected to have key %q", messageKey)
-	} else if val.(string) != expMessage {
-		t.Errorf("wrong value at %q; got %q, expected %q", messageKey, val.(string), expMessage)
-	}
-
-	// test trace id
-	numTraceKeyValues := strings.Count(string(in), traceIDKey)
-	if expTraceID {
-		if val, ok := parsedRoot[traceIDKey]; !ok {
-			t.Errorf("expected to have key %q", traceIDKey)
-		} else if val.(string) == "" {
-			t.Errorf("expected non-empty value at %q", traceIDKey)
-		}
-		if numTraceKeyValues != 1 {
-			t.Errorf("wrong count of %q values; got %d, expected %d", traceIDKey, numTraceKeyValues, 1)
-		}
-	} else {
-		val, ok := parsedRoot[traceIDKey]
-		if ok {
-			t.Errorf("unexpected trace ID at %q; got %v", traceIDKey, val)
-		}
-		if numTraceKeyValues > 0 {
-			t.Errorf("wrong count of %q values; got %d, expected %d", traceIDKey, numTraceKeyValues, 0)
-		}
-	}
-
-	// test data
-	if val, ok := parsedRoot[dataKey]; !ok {
-		t.Errorf("expected to have key %q", dataKey)
-	} else if parsedData, ok = val.(map[string]interface{}); !ok {
-		t.Errorf("expected %q to be a %T", dataKey, make(map[string]interface{}))
-	}
-
-	if len(parsedData) != len(expData) {
-		t.Errorf("wrong number of keys; got %d, expected %d", len(parsedData), len(expData))
-	}
-
-	for expKey, expVal := range expData {
-		got, ok := parsedData[expKey]
+	t.Run(messageKey+" field", func(t *testing.T) {
+		val, ok := parsedRoot[messageKey]
 		if !ok {
-			t.Errorf("expected to have subkey [%q][%q]", dataKey, expKey)
-		} else if got != expVal {
-			t.Errorf(
-				"wrong value at [%q][%q]; got %v (type %T), expected %v (type %T)",
-				dataKey, expKey, got, got, expVal, expVal,
-			)
+			t.Fatalf("expected to have key %q", messageKey)
 		}
-	}
+		if val.(string) != expMessage {
+			t.Errorf("wrong value at %q; got %q, expected %q", messageKey, val.(string), expMessage)
+		}
+	})
+
+	t.Run(versionKey+" field", func(t *testing.T) {
+		// Check that the effects of package configuration are seen in
+		// subsequent log entries.
+		var parsedVersioningData map[string]interface{}
+
+		val, ok := parsedRoot[versionKey]
+		if !ok {
+			t.Fatalf("expected to have key %q", versionKey)
+		} else if parsedVersioningData, ok = val.(map[string]interface{}); !ok {
+			t.Errorf("expected %q to be a %T", versionKey, make(map[string]interface{}))
+		}
+
+		expVersioningData := map[string]string{"branch_name": "dev", "build_time": "now"}
+		if len(parsedVersioningData) != len(expVersioningData) {
+			t.Errorf("wrong number of keys; got %d, expected %d", len(parsedVersioningData), len(expVersioningData))
+		}
+
+		for expKey, expVal := range expVersioningData {
+			got, ok := parsedVersioningData[expKey]
+			if !ok {
+				t.Errorf("expected to have subkey [%q][%q]", versionKey, expKey)
+			} else if got != expVal {
+				t.Errorf(
+					"wrong value at [%q][%q]; got %v (type %T), expected %v (type %T)",
+					versionKey, expKey, got, got, expVal, expVal,
+				)
+			}
+		}
+	})
+
+	t.Run(traceIDKey+" field", func(t *testing.T) {
+		numTraceKeyValues := strings.Count(string(in), traceIDKey)
+		if expTraceID {
+			val, ok := parsedRoot[traceIDKey]
+			if !ok {
+				t.Fatalf("expected to have key %q", traceIDKey)
+			}
+			if val.(string) == "" {
+				t.Errorf("expected non-empty value at %q", traceIDKey)
+			}
+			if numTraceKeyValues != 1 {
+				t.Errorf("wrong count of %q values; got %d, expected %d", traceIDKey, numTraceKeyValues, 1)
+			}
+		} else {
+			val, ok := parsedRoot[traceIDKey]
+			if ok {
+				t.Errorf("unexpected trace ID at %q; got %v", traceIDKey, val)
+			}
+			if numTraceKeyValues > 0 {
+				t.Errorf("wrong count of %q values; got %d, expected %d", traceIDKey, numTraceKeyValues, 0)
+			}
+		}
+	})
+
+	t.Run(dataKey+" field", func(t *testing.T) {
+		if expData != nil {
+			var parsedData map[string]interface{}
+
+			if val, ok := parsedRoot[dataKey]; !ok {
+				t.Errorf("expected to have key %q", dataKey)
+			} else if parsedData, ok = val.(map[string]interface{}); !ok {
+				t.Errorf("expected %q to be a %T", dataKey, make(map[string]interface{}))
+			}
+
+			if len(parsedData) != len(expData) {
+				t.Errorf("wrong number of keys; got %d, expected %d", len(parsedData), len(expData))
+			}
+
+			for expKey, expVal := range expData {
+				got, ok := parsedData[expKey]
+				if !ok {
+					t.Errorf("expected to have subkey [%q][%q]", dataKey, expKey)
+				} else if got != expVal {
+					t.Errorf(
+						"wrong value at [%q][%q]; got %v (type %T), expected %v (type %T)",
+						dataKey, expKey, got, got, expVal, expVal,
+					)
+				}
+			}
+		} else {
+			val, ok := parsedRoot[dataKey]
+			if ok {
+				t.Errorf("unexpected data at %q; got %v", dataKey, val)
+			}
+		}
+	})
 }
 
 func newDataSink() *DataSink {
