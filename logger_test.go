@@ -13,24 +13,24 @@ func TestLogger(t *testing.T) {
 	// combinations can work without panicking on invalid memory address refs.
 
 	t.Run("no sinks", func(t *testing.T) {
-		logg.New(nil).Infof(t.Name())
-		logg.New([]slog.Attr{slog.String("a", "b")}).Infof(t.Name())
+		logg.New(nil).Info(t.Name())
+		logg.New([]slog.Attr{slog.String("a", "b")}).Info(t.Name())
 	})
 
 	t.Run("empty sinks", func(t *testing.T) {
-		logg.New(nil, nil).Infof(t.Name())
-		logg.New([]slog.Attr{slog.String("a", "b")}, nil).Infof(t.Name())
+		logg.New(nil, nil).Info(t.Name())
+		logg.New([]slog.Attr{slog.String("a", "b")}, nil).Info(t.Name())
 	})
 
 	t.Run("one sink", func(t *testing.T) {
 		alfa := newDataSink()
-		logg.New(nil, alfa).Infof(t.Name())
+		logg.New(nil, alfa).Info(t.Name())
 		if len(alfa.Raw()) < 1 {
 			t.Error("did not write data")
 		}
 
 		bravo := newDataSink()
-		logg.New([]slog.Attr{slog.String("a", "b")}, bravo).Infof(t.Name())
+		logg.New([]slog.Attr{slog.String("a", "b")}, bravo).Info(t.Name())
 		if len(bravo.Raw()) < 1 {
 			t.Error("did not write data")
 		}
@@ -38,7 +38,7 @@ func TestLogger(t *testing.T) {
 
 	t.Run("more sinks", func(t *testing.T) {
 		alfa, bravo := newDataSink(), newDataSink()
-		logg.New(nil, alfa, bravo).Infof(t.Name())
+		logg.New(nil, alfa, bravo).Info(t.Name())
 		if len(alfa.Raw()) < 1 {
 			t.Error("did not write data")
 		}
@@ -47,7 +47,7 @@ func TestLogger(t *testing.T) {
 		}
 
 		charlie, delta := newDataSink(), newDataSink()
-		logg.New([]slog.Attr{slog.String("a", "b")}, charlie, delta).Infof(t.Name())
+		logg.New([]slog.Attr{slog.String("a", "b")}, charlie, delta).Info(t.Name())
 		if len(charlie.Raw()) < 1 {
 			t.Error("did not write data")
 		}
@@ -60,12 +60,12 @@ func TestLogger(t *testing.T) {
 		t.Setenv("LOGG_LEVEL", "INFO")
 
 		alfa := newDataSink()
-		logg.New(nil, alfa).Infof(t.Name())
+		logg.New(nil, alfa).Info(t.Name())
 		if len(alfa.Raw()) < 1 {
 			t.Error("did not write data")
 		}
 
-		logg.New(nil, alfa).Errorf(errors.New("test"), t.Name())
+		logg.New(nil, alfa).Error(errors.New("test"), t.Name())
 		if len(alfa.Raw()) < 1 {
 			t.Error("did not write data")
 		}
@@ -75,12 +75,12 @@ func TestLogger(t *testing.T) {
 		t.Setenv("LOGG_LEVEL", "WARN")
 
 		alfa := newDataSink()
-		logg.New(nil, alfa).Infof(t.Name())
+		logg.New(nil, alfa).Info(t.Name())
 		if len(alfa.Raw()) > 0 {
 			t.Error("unexpected data written for current logging level")
 		}
 
-		logg.New(nil, alfa).Errorf(errors.New("test"), t.Name())
+		logg.New(nil, alfa).Error(errors.New("test"), t.Name())
 		if len(alfa.Raw()) < 1 {
 			t.Error("did not write data")
 		}
@@ -90,12 +90,12 @@ func TestLogger(t *testing.T) {
 		t.Setenv("LOGG_LEVEL", "ERROR")
 
 		alfa := newDataSink()
-		logg.New(nil, alfa).Infof(t.Name())
+		logg.New(nil, alfa).Info(t.Name())
 		if len(alfa.Raw()) > 0 {
 			t.Error("unexpected data written for current logging level")
 		}
 
-		logg.New(nil, alfa).Errorf(errors.New("test"), t.Name())
+		logg.New(nil, alfa).Error(errors.New("test"), t.Name())
 		if len(alfa.Raw()) < 1 {
 			t.Error("did not write data")
 		}
@@ -106,12 +106,12 @@ func TestLogger(t *testing.T) {
 		t.Setenv("LOGG_LEVEL", "UNKNOWN")
 
 		alfa := newDataSink()
-		logg.New(nil, alfa).Infof(t.Name())
+		logg.New(nil, alfa).Info(t.Name())
 		if len(alfa.Raw()) < 1 {
 			t.Error("did not write data")
 		}
 
-		logg.New(nil, alfa).Errorf(errors.New("test"), t.Name())
+		logg.New(nil, alfa).Error(errors.New("test"), t.Name())
 		if len(alfa.Raw()) < 1 {
 			t.Error("did not write data")
 		}

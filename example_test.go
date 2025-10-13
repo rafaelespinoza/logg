@@ -2,6 +2,7 @@ package logg_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -41,9 +42,9 @@ func ExampleConfigure_multipleSinks() {
 // This example shows how the first usage of logg, that is not Configure,
 // may unintentionally set up your logger.
 func ExampleConfigure_possiblyUnintendedConfiguration() {
-	logg.Infof("these writes go")
-	logg.Infof("to standard error")
-	logg.Infof("by default")
+	logg.Info("these writes go")
+	logg.Info("to standard error")
+	logg.Info("by default")
 
 	// Then your code attempts to configure the logger to write to someSocket.
 	var someSocket io.Writer
@@ -59,8 +60,8 @@ func ExampleConfigure_possiblyUnintendedConfiguration() {
 	// Whoops, these logging event will continue to go to standard error. This
 	// may not be what you want. The solution would be to call Configure before
 	// emitting any kind of event.
-	logg.Infof("hello, is there")
-	logg.Infof("anybody out there?")
+	logg.Info("hello, is there")
+	logg.Info("anybody out there?")
 }
 
 // Set an ID value and retrieve it. The tracing ID value is what you tell it.
@@ -98,13 +99,36 @@ func ExampleGetID() {
 	// "", false
 }
 
+func ExampleError() {
+	err := errors.New("example")
+	logg.Error(err, "uh-oh")
+
+	// Want message string interpolation? Do this beforehand.
+	variable := "spaghetti-ohs"
+	logg.Error(err, fmt.Sprintf("uh-oh, %s", variable))
+
+	// Log message with attributes
+	logg.Error(err, "uh-oh with attributes", slog.Bool("simple", true), slog.Int("rating", 42))
+}
+
+func ExampleInfo() {
+	logg.Info("hello world")
+
+	// Want message string interpolation? Do this beforehand.
+	variable := "there"
+	logg.Info(fmt.Sprintf("hello %s", variable))
+
+	// Log message with attributes
+	logg.Info("hello with attributes", slog.Bool("simple", true), slog.Int("rating", 42))
+}
+
 // Create a logger without any data fields.
 func ExampleNew_noFields() {
 	logger := logg.New(nil)
 
 	// do stuff ...
 
-	logger.Infof("no data fields here")
+	logger.Info("no data fields here")
 }
 
 // This logger will emit events to multiple destinations.
@@ -121,8 +145,8 @@ func ExampleNew_multipleSinks() {
 
 	// do stuff ...
 
-	logger.Infof("hello")
-	logger.Infof("world")
+	logger.Info("hello")
+	logger.Info("world")
 }
 
 // Initialize the logger with data fields.
@@ -136,19 +160,19 @@ func ExampleNew_fields() {
 
 	// do stuff ...
 
-	logger.Infof("hello")
-	logger.Infof("world")
+	logger.Info("hello")
+	logger.Info("world")
 }
 
 // Set up a logger a tracing ID. The tracing ID can be any string you want.
 func ExampleNew_withID() {
 	ctx := logg.SetID(context.Background(), "logger_id")
-	logger := logg.New(nil).WithID(ctx)
+	logger := logg.New([]slog.Attr{}).WithID(ctx)
 
 	// do stuff ...
 
-	logger.Infof("hello")
-	logger.Infof("world")
+	logger.Info("hello")
+	logger.Info("world")
 }
 
 // Demonstrate tracing ID behavior.
@@ -158,20 +182,50 @@ func ExampleEmitter_withID() {
 	ctxA := logg.SetID(context.Background(), "AAA")
 	alfa := logg.New([]slog.Attr{slog.String("a", "A")}).WithID(ctxA)
 	// These events have a tracing ID AAA.
-	alfa.Infof("altoona")
-	alfa.Infof("alice in wonderland")
+	alfa.Info("altoona")
+	alfa.Info("alice in wonderland")
 
 	// Use the same context in another Emitter.
 	bravo := logg.New([]slog.Attr{slog.String("b", "B")}).WithID(ctxA)
 	// These events have a tracing ID AAA.
-	bravo.Infof("brazil")
-	bravo.Infof("bilbo baggins")
+	bravo.Info("brazil")
+	bravo.Info("bilbo baggins")
 
 	// Deriving a new context with its own tracing ID and passing it to another
 	// Emitter yields the tracing ID from the derived context.
 	anotherCtx := logg.SetID(ctxA, "CCC")
 	charlie := logg.New([]slog.Attr{slog.String("c", "C")}).WithID(anotherCtx)
 	// These events have a tracing ID CCC.
-	charlie.Infof("chicago")
-	charlie.Infof("chewbacca")
+	charlie.Info("chicago")
+	charlie.Info("chewbacca")
+}
+
+func ExampleEmitter_error() {
+	err := errors.New("example")
+
+	alfa := logg.New([]slog.Attr{})
+
+	// Outputs an error log.
+	alfa.Error(err, "test")
+
+	// Create a new Emitter with some attributes, then output an error log.
+	bravo := alfa.WithData([]slog.Attr{slog.String("foo", "bar")})
+	bravo.Error(err, "test")
+
+	// Outputs an error log with more data attributes.
+	bravo.Error(err, "test", slog.Bool("test", true))
+}
+
+func ExampleEmitter_info() {
+	alfa := logg.New([]slog.Attr{})
+
+	// Outputs an info log.
+	alfa.Info("test")
+
+	// Create a new Emitter with some attributes, then output an info log.
+	bravo := alfa.WithData([]slog.Attr{slog.String("foo", "bar")})
+	bravo.Info("test")
+
+	// Outputs an info log with more data attributes.
+	bravo.Info("test", slog.Bool("test", true))
 }

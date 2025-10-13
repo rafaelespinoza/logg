@@ -2,7 +2,6 @@ package logg
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -45,27 +44,25 @@ func Configure(w io.Writer, version []slog.Attr, moreSinks ...io.Writer) {
 	})
 }
 
-// Errorf writes msg to the log at level error and additionally writes err to an
-// error field. If msg is a format string and there are args, then it works like
-// fmt.Printf.
-func Errorf(err error, msg string, args ...interface{}) {
+// Error writes msg to the log at level ERROR and additionally writes err to an
+// error field.
+func Error(err error, msg string, attrs ...slog.Attr) {
 	r := rootLogger()
-	m := fmt.Sprintf(msg, args...)
-	log(context.Background(), r, slog.LevelError, err, m, "", r.attrs...)
+	mergedAttrs := mergeAttrs(r.attrs, attrs)
+	log(context.Background(), r, slog.LevelError, err, msg, "", mergedAttrs...)
 }
 
-// Infof writes msg to the log at level info. If msg is a format string and
-// there are args, then it works like fmt.Printf.
-func Infof(msg string, args ...interface{}) {
+// Info writes msg to the log at level INFO.
+func Info(msg string, attrs ...slog.Attr) {
 	r := rootLogger()
-	m := fmt.Sprintf(msg, args...)
-	log(context.Background(), r, slog.LevelInfo, nil, m, "", r.attrs...)
+	mergedAttrs := mergeAttrs(r.attrs, attrs)
+	log(context.Background(), r, slog.LevelInfo, nil, msg, "", mergedAttrs...)
 }
 
 // An Emitter writes to the log at info or error levels.
 type Emitter interface {
-	Infof(msg string, args ...interface{})
-	Errorf(err error, msg string, args ...interface{})
+	Info(msg string, attrs ...slog.Attr)
+	Error(err error, msg string, attrs ...slog.Attr)
 	WithID(ctx context.Context) Emitter
 	WithData(attrs []slog.Attr) Emitter
 }

@@ -3,7 +3,6 @@ package logg
 import (
 	"cmp"
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -32,14 +31,14 @@ func New(attrs []slog.Attr, sinks ...io.Writer) Emitter {
 	return newLogger(lgr, rootLogger().versioning, "", attrs...)
 }
 
-func (l *logger) Errorf(err error, msg string, args ...interface{}) {
-	m := fmt.Sprintf(msg, args...)
-	log(context.Background(), l, slog.LevelError, err, m, l.id, l.attrs...)
+func (l *logger) Error(err error, msg string, attrs ...slog.Attr) {
+	mergedAttrs := mergeAttrs(l.attrs, attrs)
+	log(context.Background(), l, slog.LevelError, err, msg, l.id, mergedAttrs...)
 }
 
-func (l *logger) Infof(msg string, args ...interface{}) {
-	m := fmt.Sprintf(msg, args...)
-	log(context.Background(), l, slog.LevelInfo, nil, m, l.id, l.attrs...)
+func (l *logger) Info(msg string, attrs ...slog.Attr) {
+	mergedAttrs := mergeAttrs(l.attrs, attrs)
+	log(context.Background(), l, slog.LevelInfo, nil, msg, l.id, mergedAttrs...)
 }
 
 func (l *logger) WithID(ctx context.Context) Emitter {

@@ -29,22 +29,49 @@ func init() {
 }
 
 func TestInfo(t *testing.T) {
-	logg.Infof("hello info")
+	t.Run("no attrs", func(t *testing.T) {
+		logg.Info("hello info")
 
-	testLogg(t, pkgSink.Raw(), nil, "hello info", false, "", nil)
-	if t.Failed() {
-		t.Logf("%s", pkgSink.Raw())
-	}
+		testLogg(t, pkgSink.Raw(), nil, "hello info", false, "", nil)
+		if t.Failed() {
+			t.Logf("%s", pkgSink.Raw())
+		}
+	})
+
+	t.Run("with attrs", func(t *testing.T) {
+		logg.Info("hello info", slog.String("foo", "bar"))
+
+		testLogg(t, pkgSink.Raw(), nil, "hello info", false, "", []slog.Attr{
+			slog.String("foo", "bar"),
+		})
+		if t.Failed() {
+			t.Logf("%s", pkgSink.Raw())
+		}
+	})
 }
 
 func TestError(t *testing.T) {
-	err := errors.New("OOF")
-	logg.Errorf(err, "hello error")
+	t.Run("no attrs", func(t *testing.T) {
+		err := errors.New("OOF")
+		logg.Error(err, "hello error")
 
-	testLogg(t, pkgSink.Raw(), err, "hello error", false, "", nil)
-	if t.Failed() {
-		t.Logf("%s", pkgSink.Raw())
-	}
+		testLogg(t, pkgSink.Raw(), err, "hello error", false, "", nil)
+		if t.Failed() {
+			t.Logf("%s", pkgSink.Raw())
+		}
+	})
+
+	t.Run("with attrs", func(t *testing.T) {
+		err := errors.New("OOF")
+		logg.Error(err, "hello error", slog.String("bar", "foo"))
+
+		testLogg(t, pkgSink.Raw(), err, "hello error", false, "", []slog.Attr{
+			slog.String("bar", "foo"),
+		})
+		if t.Failed() {
+			t.Logf("%s", pkgSink.Raw())
+		}
+	})
 }
 
 func TestLogg(t *testing.T) {
@@ -54,7 +81,7 @@ func TestLogg(t *testing.T) {
 			sink := newDataSink()
 			logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
 
-			logger.Infof("hello")
+			logger.Info("hello")
 
 			testLogg(t, sink.Raw(), nil, "hello", false, "", []slog.Attr{slog.String("sierra", "nevada")})
 			if t.Failed() {
@@ -71,11 +98,11 @@ func TestLogg(t *testing.T) {
 				slog.String("delta", (234 * time.Millisecond).String()),
 				slog.Float64("foxtrot", 1.23),
 				slog.Int("india", 10),
-			}).Infof("goodbye")
+			}).Info("goodbye")
 
 			testLogg(t, sink.Raw(), nil, "goodbye", false, "", []slog.Attr{
 				// The types of expected values are changed due to the way
-				// encoding/json unmarshals interface{} values. This is far from
+				// encoding/json unmarshals any values. This is far from
 				// perfect, so at this point, considering the field tests to be
 				// "close enough".
 				slog.Bool("bravo", true),
@@ -93,14 +120,37 @@ func TestLogg(t *testing.T) {
 			// setup
 			sink := newDataSink()
 			logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
-			logger.WithData([]slog.Attr{slog.Bool("bravo", true)}).Infof("goodbye")
+			logger.WithData([]slog.Attr{slog.Bool("bravo", true)}).Info("goodbye")
 
-			logger.WithData([]slog.Attr{slog.Bool("zulu", true)}).Infof("goodbye again")
+			logger.WithData([]slog.Attr{slog.Bool("zulu", true)}).Info("goodbye again")
 
 			testLogg(t, sink.Raw(), nil, "goodbye again", false, "", []slog.Attr{
 				slog.Bool("zulu", true),
 				slog.String("sierra", "nevada"),
 			})
+			if t.Failed() {
+				t.Logf("%s", sink.Raw())
+			}
+		})
+
+		t.Run("with attrs", func(t *testing.T) {
+			sink := newDataSink()
+			logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
+
+			logger.Info("hello", slog.Int("i", 1))
+
+			testLogg(t, sink.Raw(), nil, "hello", false, "", []slog.Attr{
+				slog.String("sierra", "nevada"),
+				slog.Int("i", 1),
+			})
+			if t.Failed() {
+				t.Logf("%s", sink.Raw())
+			}
+
+			// Calling a log method with attrs does not affect logger's fields
+			logger.Info("hello again")
+
+			testLogg(t, sink.Raw(), nil, "hello again", false, "", []slog.Attr{slog.String("sierra", "nevada")})
 			if t.Failed() {
 				t.Logf("%s", sink.Raw())
 			}
@@ -112,7 +162,7 @@ func TestLogg(t *testing.T) {
 			sink := newDataSink()
 			logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
 
-			logger.Errorf(errors.New("hello"), "logger error")
+			logger.Error(errors.New("hello"), "logger error")
 
 			testLogg(t, sink.Raw(), errors.New("hello"), "logger error", false, "", []slog.Attr{slog.String("sierra", "nevada")})
 			if t.Failed() {
@@ -129,11 +179,11 @@ func TestLogg(t *testing.T) {
 				slog.String("delta", (432 * time.Millisecond).String()),
 				slog.Float64("foxtrot", 3.21),
 				slog.Int("india", 100),
-			}).Errorf(errors.New("goodbye"), "event error")
+			}).Error(errors.New("goodbye"), "event error")
 
 			testLogg(t, sink.Raw(), errors.New("goodbye"), "event error", false, "", []slog.Attr{
 				// The types of expected values are changed due to the way
-				// encoding/json unmarshals interface{} values. This is far from
+				// encoding/json unmarshals any values. This is far from
 				// perfect, so at this point, considering the field tests to be
 				// "close enough".
 				slog.Bool("bravo", false),
@@ -151,14 +201,38 @@ func TestLogg(t *testing.T) {
 			// setup
 			sink := newDataSink()
 			logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
-			logger.WithData([]slog.Attr{slog.Bool("bravo", true)}).Infof("goodbye")
+			logger.WithData([]slog.Attr{slog.Bool("bravo", true)}).Info("goodbye")
 
-			logger.WithData([]slog.Attr{slog.Bool("zulu", true)}).Errorf(errors.New("bye"), "goodbye again")
+			logger.WithData([]slog.Attr{slog.Bool("zulu", true)}).Error(errors.New("bye"), "goodbye again")
 
 			testLogg(t, sink.Raw(), errors.New("bye"), "goodbye again", false, "", []slog.Attr{
 				slog.Bool("zulu", true),
 				slog.String("sierra", "nevada"),
 			})
+			if t.Failed() {
+				t.Logf("%s", sink.Raw())
+			}
+		})
+
+		t.Run("with attrs", func(t *testing.T) {
+			sink := newDataSink()
+			err := errors.New("test")
+			logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
+
+			logger.Error(err, "hello", slog.Int("i", 1))
+
+			testLogg(t, sink.Raw(), err, "hello", false, "", []slog.Attr{
+				slog.String("sierra", "nevada"),
+				slog.Int("i", 1),
+			})
+			if t.Failed() {
+				t.Logf("%s", sink.Raw())
+			}
+
+			// Calling a log method with attrs does not affect logger's fields
+			logger.Error(err, "hello again")
+
+			testLogg(t, sink.Raw(), err, "hello again", false, "", []slog.Attr{slog.String("sierra", "nevada")})
 			if t.Failed() {
 				t.Logf("%s", sink.Raw())
 			}
@@ -173,13 +247,13 @@ func TestWithID(t *testing.T) {
 		sink := newDataSink()
 
 		logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink).WithID(ctx)
-		logger.Infof("logger with id")
+		logger.Info("logger with id")
 		testLogg(t, sink.Raw(), nil, "logger with id", true, "logger_id", []slog.Attr{slog.String("sierra", "nevada")})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
 		}
 
-		logger.WithData([]slog.Attr{slog.Bool("bravo", true)}).Infof("event with id")
+		logger.WithData([]slog.Attr{slog.Bool("bravo", true)}).Info("event with id")
 		testLogg(t, sink.Raw(), nil, "event with id", true, "logger_id", []slog.Attr{
 			slog.String("sierra", "nevada"),
 			slog.Bool("bravo", true),
@@ -195,14 +269,14 @@ func TestWithID(t *testing.T) {
 		sink := newDataSink()
 
 		logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink)
-		logger.Infof("logger without id")
+		logger.Info("logger without id")
 		testLogg(t, sink.Raw(), nil, "logger without id", false, "", []slog.Attr{slog.String("sierra", "nevada")})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
 		}
 
 		ctx := logg.SetID(context.Background(), "event_id")
-		logger.WithData([]slog.Attr{slog.Bool("bravo", true)}).WithID(ctx).Infof("event with own id")
+		logger.WithData([]slog.Attr{slog.Bool("bravo", true)}).WithID(ctx).Info("event with own id")
 		testLogg(t, sink.Raw(), nil, "event with own id", true, "event_id", []slog.Attr{
 			slog.Bool("bravo", true),
 			slog.String("sierra", "nevada"),
@@ -219,7 +293,7 @@ func TestWithID(t *testing.T) {
 		sink := newDataSink()
 
 		logger := logg.New([]slog.Attr{slog.String("sierra", "nevada")}, sink).WithID(ctxA)
-		logger.Infof("logger with id")
+		logger.Info("logger with id")
 		testLogg(t, sink.Raw(), nil, "logger with id", true, "logger_id", []slog.Attr{slog.String("sierra", "nevada")})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
@@ -227,7 +301,7 @@ func TestWithID(t *testing.T) {
 
 		// derive context from previous context, but set another ID.
 		ctxB := logg.SetID(ctxA, "event_id")
-		logger.WithData([]slog.Attr{slog.Bool("bravo", true)}).WithID(ctxB).Infof("event with own id")
+		logger.WithData([]slog.Attr{slog.Bool("bravo", true)}).WithID(ctxB).Info("event with own id")
 		testLogg(t, sink.Raw(), nil, "event with own id", true, "event_id", []slog.Attr{
 			slog.Bool("bravo", true),
 			slog.String("sierra", "nevada"),
@@ -243,35 +317,35 @@ func TestWithData(t *testing.T) {
 		sink := newDataSink()
 
 		logger := logg.New([]slog.Attr{slog.String("foo", "alfa"), slog.Bool("bar", true)}, sink)
-		logger.Infof("a")
+		logger.Info("a")
 		testLogg(t, sink.Raw(), nil, "a", false, "", []slog.Attr{slog.String("foo", "alfa"), slog.Bool("bar", true)})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
 		}
 
 		event := logger.WithData([]slog.Attr{slog.String("foo", "bravo")})
-		event.Infof("b")
+		event.Info("b")
 		testLogg(t, sink.Raw(), nil, "b", false, "", []slog.Attr{slog.String("foo", "bravo"), slog.Bool("bar", true)})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
 		}
 
 		otherEvent := event.WithData([]slog.Attr{slog.Bool("bar", false)})
-		otherEvent.Infof("c")
+		otherEvent.Info("c")
 		testLogg(t, sink.Raw(), nil, "c", false, "", []slog.Attr{slog.String("foo", "bravo"), slog.Bool("bar", false)})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
 		}
 
 		// check that first logger's original data hasn't changed unexpectedly.
-		logger.Infof("d")
+		logger.Info("d")
 		testLogg(t, sink.Raw(), nil, "d", false, "", []slog.Attr{slog.String("foo", "alfa"), slog.Bool("bar", true)})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
 		}
 
 		// check that first event's original data hasn't changed unexpectedly.
-		event.Infof("e")
+		event.Info("e")
 		testLogg(t, sink.Raw(), nil, "e", false, "", []slog.Attr{slog.String("foo", "bravo"), slog.Bool("bar", true)})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
@@ -282,7 +356,7 @@ func TestWithData(t *testing.T) {
 		sink := newDataSink()
 
 		logger := logg.New(nil, sink).WithData([]slog.Attr{slog.String("foo", "alfa")})
-		logger.Infof("a")
+		logger.Info("a")
 		testLogg(t, sink.Raw(), nil, "a", false, "", []slog.Attr{slog.String("foo", "alfa")})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
@@ -293,7 +367,7 @@ func TestWithData(t *testing.T) {
 		sink := newDataSink()
 
 		logger := logg.New([]slog.Attr{slog.String("foo", "alfa")}, sink).WithData(nil)
-		logger.Infof("a")
+		logger.Info("a")
 		testLogg(t, sink.Raw(), nil, "a", false, "", []slog.Attr{slog.String("foo", "alfa")})
 		if t.Failed() {
 			t.Logf("%s", sink.Raw())
@@ -312,7 +386,7 @@ func testLogg(t *testing.T, in []byte, expErr error, expMessage string, expTrace
 		dataKey    = "data"
 	)
 
-	var parsedRoot map[string]interface{}
+	var parsedRoot map[string]any
 
 	if err := json.Unmarshal(in, &parsedRoot); err != nil {
 		t.Fatal(err)
@@ -348,13 +422,13 @@ func testLogg(t *testing.T, in []byte, expErr error, expMessage string, expTrace
 	t.Run(versionKey+" field", func(t *testing.T) {
 		// Check that the effects of package configuration are seen in
 		// subsequent log entries.
-		var parsedVersioningData map[string]interface{}
+		var parsedVersioningData map[string]any
 
 		val, ok := parsedRoot[versionKey]
 		if !ok {
 			t.Fatalf("expected to have key %q", versionKey)
-		} else if parsedVersioningData, ok = val.(map[string]interface{}); !ok {
-			t.Errorf("expected %q to be a %T", versionKey, make(map[string]interface{}))
+		} else if parsedVersioningData, ok = val.(map[string]any); !ok {
+			t.Errorf("expected %q to be a %T", versionKey, make(map[string]any))
 		}
 
 		expVersioningData := map[string]string{"branch_name": "dev", "build_time": "now"}

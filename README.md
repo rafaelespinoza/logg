@@ -30,7 +30,7 @@ events. Things initialized are the output sinks and an optional "version" field.
 The "version" is just some application versioning metadata, which may be useful
 if you want to know something about your application's source code.
 
-Use the `Errorf`, `Infof` functions to log at error, info levels respectively.
+Use the `Error`, `Info` functions to log at error, info levels respectively.
 
 Tracing IDs are managed with a context API, see the `SetID` and `GetID`
 functions. You supply the value. There are many choices in this area, some
@@ -52,8 +52,8 @@ See more in the godoc examples.
 
 These top-level fields are always present:
 
-- `level`: string, either `"info"`, `"error"`
-- `time`: string, an rfc3339 timestamp of emission in system's timezone.
+- `time`: string, rfc3339 timestamp.
+- `level`: string, either `"INFO"`, `"ERROR"`
 - `msg`: string, what happened
 
 These top-level fields may or may not be present, depending on configuration and
@@ -72,14 +72,14 @@ how the event is emitted:
 Info level
 ```
 {
-  "level":"info",
-  "time":"2021-09-22T08:59:52-07:00",
+  "time":"2025-09-22T08:59:52.657053724Z",
+  "level":"INFO",
   "msg":"TestLogger/empty_sinks",
   "data":{
     "alfa": "anything",
     "bravo": {
       "bool": true,
-      "duration": 1234,
+      "duration_ns": 1234,
       "float": 1.23,
       "int": 10,
       "string": "nevada"
@@ -91,10 +91,10 @@ Info level
 Error level
 ```
 {
-  "level":"error",
-  "error":"pq: duplicate key value violates unique constraint \"unique_index_on_foos_bar_id\"",
-  "time":"2021-09-22T08:47:11-07:00",
+  "time":"2025-09-22T08:47:11.856469998Z",
+  "level":"ERROR",
   "msg":"database library error",
+  "error":"pq: duplicate key value violates unique constraint \"unique_index_on_foos_bar_id\"",
   "data":{
     "code":"23505",
     "message":"duplicate key value violates unique constraint \"unique_index_on_foos_bar_id\"",
@@ -108,19 +108,19 @@ invoked before the first invocation of any library function.
 
 ```
 {
-  "level":"info",
-  "time":"2021-09-22T08:59:52-07:00",
+  "time":"2025-09-22T08:59:52.347111271Z",
+  "level":"INFO",
   "msg":"TestLogger/empty_sinks",
   "version":{
     "branch_name":"main",
-    "go_version":"v1.17",
+    "go_version":"v1.25",
     "commit_hash":"deadbeef"
   },
   "data":{
     "alfa": "anything",
     "bravo": {
       "bool": true,
-      "duration": 1234,
+      "duration_ns": 1234,
       "float": 1.23,
       "int": 10,
       "string": "nevada"
