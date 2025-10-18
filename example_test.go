@@ -153,7 +153,7 @@ func ExampleEmitter() {
 }
 
 // Demonstrate tracing ID behavior. The tracing ID can be any string you want.
-func ExampleEmitter_withID() {
+func ExampleEmitter_WithID() {
 	// Create a new context to ensure the same tracing ID on each subsequent
 	// tracing event.
 	ctxA := logg.SetID(context.Background(), "AAA")
