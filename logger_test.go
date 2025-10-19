@@ -54,48 +54,72 @@ func TestLogger(t *testing.T) {
 		}
 	})
 
-	t.Run("log level set to INFO", func(t *testing.T) {
-		const level = slog.LevelInfo
-		sink, handler := newDataSinkAndJSONHandler(level)
-
-		logg.New(handler).Info(t.Name())
-		if len(sink.Raw()) < 1 {
-			t.Error("did not write data")
+	t.Run("handler level", func(t *testing.T) {
+		tests := []struct {
+			inputLevel     slog.Level
+			expDebugOutput bool
+			expInfoOutput  bool
+			expWarnOutput  bool
+			expErrorOutput bool
+		}{
+			{
+				inputLevel:     slog.LevelDebug,
+				expDebugOutput: true, expInfoOutput: true, expWarnOutput: true, expErrorOutput: true,
+			},
+			{
+				inputLevel:     slog.LevelInfo,
+				expDebugOutput: false, expInfoOutput: true, expWarnOutput: true, expErrorOutput: true,
+			},
+			{
+				inputLevel:     slog.LevelWarn,
+				expDebugOutput: false, expInfoOutput: false, expWarnOutput: true, expErrorOutput: true,
+			},
+			{
+				inputLevel:     slog.LevelError,
+				expDebugOutput: false, expInfoOutput: false, expWarnOutput: false, expErrorOutput: true,
+			},
+			{
+				inputLevel:     slog.LevelError + 1,
+				expDebugOutput: false, expInfoOutput: false, expWarnOutput: false, expErrorOutput: false,
+			},
 		}
 
-		logg.New(handler).Error(errors.New("test"), t.Name())
-		if len(sink.Raw()) < 1 {
-			t.Error("did not write data")
-		}
-	})
+		for _, test := range tests {
+			t.Run(test.inputLevel.String(), func(t *testing.T) {
+				sink, handler := newDataSinkAndJSONHandler(test.inputLevel)
 
-	t.Run("log level set to WARN", func(t *testing.T) {
-		const level = slog.LevelWarn
-		sink, handler := newDataSinkAndJSONHandler(level)
+				logg.New(handler).Debug(t.Name())
+				gotDebug := sink.Raw()
+				if test.expDebugOutput && len(gotDebug) < 1 {
+					t.Errorf("expected to write data at level %s", slog.LevelDebug.String())
+				} else if !test.expInfoOutput && len(gotDebug) > 0 {
+					t.Errorf("unexpected data written at level %s", slog.LevelDebug.String())
+				}
 
-		logg.New(handler).Info(t.Name())
-		if len(sink.Raw()) > 0 {
-			t.Error("unexpected data written for current logging level")
-		}
+				logg.New(handler).Info(t.Name())
+				gotInfo := sink.Raw()
+				if test.expInfoOutput && len(gotInfo) < 1 {
+					t.Errorf("expected to write data at level %s", slog.LevelInfo.String())
+				} else if !test.expInfoOutput && len(gotInfo) > 0 {
+					t.Errorf("unexpected data written at level %s", slog.LevelInfo.String())
+				}
 
-		logg.New(handler).Error(errors.New("test"), t.Name())
-		if len(sink.Raw()) < 1 {
-			t.Error("did not write data")
-		}
-	})
+				logg.New(handler).Warn(t.Name())
+				gotWarn := sink.Raw()
+				if test.expWarnOutput && len(gotWarn) < 1 {
+					t.Errorf("expected to write data at level %s", slog.LevelWarn.String())
+				} else if !test.expWarnOutput && len(gotWarn) > 0 {
+					t.Errorf("unexpected data written at level %s", slog.LevelWarn.String())
+				}
 
-	t.Run("log level set to ERROR", func(t *testing.T) {
-		const level = slog.LevelError
-		sink, handler := newDataSinkAndJSONHandler(level)
-
-		logg.New(handler).Info(t.Name())
-		if len(sink.Raw()) > 0 {
-			t.Error("unexpected data written for current logging level")
-		}
-
-		logg.New(handler).Error(errors.New("test"), t.Name())
-		if len(sink.Raw()) < 1 {
-			t.Error("did not write data")
+				logg.New(handler).Error(errors.New("test"), t.Name())
+				gotError := sink.Raw()
+				if test.expErrorOutput && len(gotError) < 1 {
+					t.Errorf("expected to write data at level %s", slog.LevelError.String())
+				} else if !test.expErrorOutput && len(gotError) > 0 {
+					t.Errorf("unexpected data written at level %s", slog.LevelError.String())
+				}
+			})
 		}
 	})
 }

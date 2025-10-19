@@ -19,7 +19,7 @@ The feature set is:
 
 - attribute management, including contextual tracing IDs
 - timestamps
-- leveled logging (only ERROR and INFO severities)
+- leveled logging
 - emit JSON, TEXT (space separated key=value pairs)
   - pass in a `slog.Handler` for further customization
 
@@ -30,7 +30,8 @@ initializes a root logger, which functions like a prototype for subsequent
 events. Things initialized are the output sinks and an optional "version"
 field. The "version" data appears in its own group for each log event.
 
-Use the `Error`, `Info` functions to log at error, info levels respectively.
+Use the `Debug`, `Info`, `Warn`, `Error` functions to log at the respective
+levels.
 
 Tracing IDs are managed with a context API, see the `SetID` and `GetID`
 functions. You supply the value. There are many choices in this area, some
@@ -54,8 +55,8 @@ When using the `slog.JSONHandler` with default settings, these top-level fields
 are present:
 
 - `time`: string, rfc3339 timestamp.
-- `level`: string, either `"INFO"`, `"ERROR"`
-- `msg`: string, what happened
+- `level`: string, one of: `"DEBUG"`, `"INFO"`,`"WARN"`, `"ERROR"`.
+- `msg`: string, what happened.
 
 These top-level fields may or may not be present, depending on configuration and
 how the event is emitted:

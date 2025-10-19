@@ -37,20 +37,33 @@ func Setup(h slog.Handler, version ...slog.Attr) {
 	rootLogger().lgr.Debug(libraryMsgPrefix + "setup root logger")
 }
 
-// Error writes msg to the log at level ERROR and additionally writes err to an
-// error field.
-func Error(err error, msg string, attrs ...slog.Attr) {
-	log(context.Background(), rootLogger().lgr, slog.LevelError, err, msg, "", attrs...)
+// Debug writes msg to the package logger with optional attributes at level
+// DEBUG.
+func Debug(msg string, attrs ...slog.Attr) {
+	log(context.Background(), rootLogger().lgr, slog.LevelDebug, nil, msg, "", attrs...)
 }
 
-// Info writes msg to the log at level INFO.
+// Info writes msg to the package logger with optional attributes at level INFO.
 func Info(msg string, attrs ...slog.Attr) {
 	log(context.Background(), rootLogger().lgr, slog.LevelInfo, nil, msg, "", attrs...)
 }
 
+// Warn writes msg to the package logger with optional attributes at level WARN.
+func Warn(msg string, attrs ...slog.Attr) {
+	log(context.Background(), rootLogger().lgr, slog.LevelWarn, nil, msg, "", attrs...)
+}
+
+// Error writes msg to the package logger with optional attributes at level
+// ERROR and additionally writes err to the output's "error" field.
+func Error(err error, msg string, attrs ...slog.Attr) {
+	log(context.Background(), rootLogger().lgr, slog.LevelError, err, msg, "", attrs...)
+}
+
 // An Emitter writes to the log at info or error levels.
 type Emitter interface {
+	Debug(msg string, attrs ...slog.Attr)
 	Info(msg string, attrs ...slog.Attr)
+	Warn(msg string, attrs ...slog.Attr)
 	Error(err error, msg string, attrs ...slog.Attr)
 	WithID(ctx context.Context) Emitter
 	WithData(attrs []slog.Attr) Emitter

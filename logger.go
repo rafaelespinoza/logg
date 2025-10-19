@@ -27,14 +27,24 @@ func New(h slog.Handler, dataAttrs ...slog.Attr) Emitter {
 	return out
 }
 
-func (l *logger) Error(err error, msg string, attrs ...slog.Attr) {
+func (l *logger) Debug(msg string, attrs ...slog.Attr) {
 	mergedAttrs := mergeAttrs(l.attrs, attrs)
-	log(context.Background(), l.lgr, slog.LevelError, err, msg, l.id, mergedAttrs...)
+	log(context.Background(), l.lgr, slog.LevelDebug, nil, msg, l.id, mergedAttrs...)
 }
 
 func (l *logger) Info(msg string, attrs ...slog.Attr) {
 	mergedAttrs := mergeAttrs(l.attrs, attrs)
 	log(context.Background(), l.lgr, slog.LevelInfo, nil, msg, l.id, mergedAttrs...)
+}
+
+func (l *logger) Warn(msg string, attrs ...slog.Attr) {
+	mergedAttrs := mergeAttrs(l.attrs, attrs)
+	log(context.Background(), l.lgr, slog.LevelWarn, nil, msg, l.id, mergedAttrs...)
+}
+
+func (l *logger) Error(err error, msg string, attrs ...slog.Attr) {
+	mergedAttrs := mergeAttrs(l.attrs, attrs)
+	log(context.Background(), l.lgr, slog.LevelError, err, msg, l.id, mergedAttrs...)
 }
 
 func (l *logger) WithID(ctx context.Context) Emitter {
