@@ -28,23 +28,47 @@ func New(h slog.Handler, dataAttrs ...slog.Attr) Emitter {
 }
 
 func (l *logger) Debug(msg string, attrs ...slog.Attr) {
+	ctx := context.Background()
+	lvl := slog.LevelDebug
+	if !l.lgr.Enabled(ctx, lvl) {
+		return // prevent unnecessary attr merging
+	}
+
 	mergedAttrs := mergeAttrs(l.attrs, attrs)
-	log(context.Background(), l.lgr, slog.LevelDebug, nil, msg, l.id, mergedAttrs...)
+	log(ctx, l.lgr, lvl, nil, msg, l.id, mergedAttrs...)
 }
 
 func (l *logger) Info(msg string, attrs ...slog.Attr) {
+	ctx := context.Background()
+	lvl := slog.LevelInfo
+	if !l.lgr.Enabled(ctx, lvl) {
+		return // prevent unnecessary attr merging
+	}
+
 	mergedAttrs := mergeAttrs(l.attrs, attrs)
-	log(context.Background(), l.lgr, slog.LevelInfo, nil, msg, l.id, mergedAttrs...)
+	log(ctx, l.lgr, lvl, nil, msg, l.id, mergedAttrs...)
 }
 
 func (l *logger) Warn(msg string, attrs ...slog.Attr) {
+	ctx := context.Background()
+	lvl := slog.LevelWarn
+	if !l.lgr.Enabled(ctx, lvl) {
+		return // prevent unnecessary attr merging
+	}
+
 	mergedAttrs := mergeAttrs(l.attrs, attrs)
-	log(context.Background(), l.lgr, slog.LevelWarn, nil, msg, l.id, mergedAttrs...)
+	log(ctx, l.lgr, lvl, nil, msg, l.id, mergedAttrs...)
 }
 
 func (l *logger) Error(err error, msg string, attrs ...slog.Attr) {
+	ctx := context.Background()
+	lvl := slog.LevelError
+	if !l.lgr.Enabled(ctx, lvl) {
+		return // prevent unnecessary attr merging
+	}
+
 	mergedAttrs := mergeAttrs(l.attrs, attrs)
-	log(context.Background(), l.lgr, slog.LevelError, err, msg, l.id, mergedAttrs...)
+	log(ctx, l.lgr, lvl, err, msg, l.id, mergedAttrs...)
 }
 
 func (l *logger) WithID(ctx context.Context) Emitter {
