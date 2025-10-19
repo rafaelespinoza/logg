@@ -17,7 +17,7 @@ opinionated and offers a limited feature set.
 
 The feature set is:
 
-- attribute management, including contextual tracing IDs
+- light attribute management, including contextual tracing IDs
 - timestamps
 - leveled logging
 - emit JSON, TEXT (space separated key=value pairs)

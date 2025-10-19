@@ -3,7 +3,6 @@ package logg
 import (
 	"context"
 	"log/slog"
-	"slices"
 )
 
 // An Emitter logs events with preset version info and attributes data. Set a
@@ -18,29 +17,16 @@ import (
 // input and prepares the attributes to be present in future logging events for
 // the created Emitter. The [Emitter.WithData] method combines the input
 // attributes with the Emitter's existing attributes and returns a new Emitter
-// with the resulting attributes. The resulting list may be subject to
-// deduplication by the attribute key. The logic is:
-//
-//   - If one of the lists is length 0 but the other list is not, then the list
-//     with a non-zero length is returned. If both lists are length 0, then a
-//     new list of length 0 is returned. If both lists have a non-zero length,
-//     then it continues on.
-//   - If a key is duplicated within the same list, then the item that appears
-//     later in that list has higher precedence.
-//   - If a key is found in the list of existing attributes and in the list of
-//     input attributes, then the item from the input list has higher precedence
-//     than an item with the same key from the existing list.
-//   - If a key is unique to either list of attributes, then that attribute will
-//     be in the resulting list.
-//   - Only top-level keys are considered in each list. When both lists have an
-//     attribute with the same key and both are [slog.KindGroup], there is no
-//     deep merge.
-//   - The returned list is a new slice. Neither input slice is modified.
+// with the resulting attributes. When there is an attribute with the same Key
+// in either list of attributes, no deduplication or merging is performed. This
+// is because the slog.Handler may already deduplicate by default, may want to
+// conditionally deduplicate the attributes, or may be designed to output those
+// attributes anyways.
 //
 // The log output methods, when passed input attributes and when the Emitter is
 // enabled, also apply this logic. A notable difference with the
 // [Emitter.WithData] method is that the created attributes are not set to the
-// Emitter. Instead, the resulting attributes are sent directly to the log.
+// Emitter. Instead, they are sent directly to the log.
 type Emitter struct {
 	lgr        *slog.Logger
 	versioning []slog.Attr
@@ -70,7 +56,7 @@ func (l *Emitter) Debug(msg string, attrs ...slog.Attr) {
 		return // prevent unnecessary attr merging
 	}
 
-	mergedAttrs := mergeAttrs(l.attrs, attrs)
+	mergedAttrs := combineAttrs(l.attrs, attrs)
 	log(ctx, l.lgr, lvl, nil, msg, l.id, mergedAttrs...)
 }
 
@@ -82,7 +68,7 @@ func (l *Emitter) Info(msg string, attrs ...slog.Attr) {
 		return // prevent unnecessary attr merging
 	}
 
-	mergedAttrs := mergeAttrs(l.attrs, attrs)
+	mergedAttrs := combineAttrs(l.attrs, attrs)
 	log(ctx, l.lgr, lvl, nil, msg, l.id, mergedAttrs...)
 }
 
@@ -94,7 +80,7 @@ func (l *Emitter) Warn(msg string, attrs ...slog.Attr) {
 		return // prevent unnecessary attr merging
 	}
 
-	mergedAttrs := mergeAttrs(l.attrs, attrs)
+	mergedAttrs := combineAttrs(l.attrs, attrs)
 	log(ctx, l.lgr, lvl, nil, msg, l.id, mergedAttrs...)
 }
 
@@ -107,7 +93,7 @@ func (l *Emitter) Error(err error, msg string, attrs ...slog.Attr) {
 		return // prevent unnecessary attr merging
 	}
 
-	mergedAttrs := mergeAttrs(l.attrs, attrs)
+	mergedAttrs := combineAttrs(l.attrs, attrs)
 	log(ctx, l.lgr, lvl, err, msg, l.id, mergedAttrs...)
 }
 
@@ -120,11 +106,12 @@ func (l *Emitter) WithID(ctx context.Context) *Emitter {
 }
 
 // WithData creates a new Emitter with added attributes. When there is an
-// existing attribute with the same key as an input attribute, then the input
-// attribute replaces the existing attribute.
+// existing attribute with the same key as one of the input attributes, then
+// both are accepted. How this data is presented in the log output depends on
+// what the slog.Handler does for attributes.
 func (l *Emitter) WithData(attrs []slog.Attr) *Emitter {
 	versioning := rootEmitter().versioning
-	mergedAttrs := mergeAttrs(l.attrs, attrs)
+	mergedAttrs := combineAttrs(l.attrs, attrs)
 
 	return newEmitter(l.lgr, versioning, l.id, mergedAttrs...)
 }
@@ -145,17 +132,9 @@ func newSlogger(handler slog.Handler, versioningAttrs ...slog.Attr) *slog.Logger
 	return lgr
 }
 
-// mergeAttrs combines, deduplicates the input lists into an output list. It
-// returns early if 1 or both lists are length 0. Otherwise, it takes 2 passes
-// over each list.
-//
-//  1. The 1st pass upon each list collects and deduplicate items based on the
-//     Attr.Key. items appearing later replace items seen earlier. The prevList is
-//     visited before the nextList.
-//  2. The 2nd pass upon each list, constructs an output list based on the
-//     deduplicated items found in the 1st pass. The ordering is based upon the
-//     nextList; items unique to the prevList are added at the end.
-func mergeAttrs(prevList, nextList []slog.Attr) []slog.Attr {
+// combineAttrs combines the input lists into an output list. It returns early
+// if 1 or both lists are length 0.
+func combineAttrs(prevList, nextList []slog.Attr) []slog.Attr {
 	if len(prevList) > 0 && len(nextList) < 1 {
 		return prevList
 	} else if len(prevList) < 1 && len(nextList) > 0 {
@@ -164,54 +143,7 @@ func mergeAttrs(prevList, nextList []slog.Attr) []slog.Attr {
 		return make([]slog.Attr, 0)
 	}
 
-	maxLength := max(len(prevList), len(nextList))
-
-	// 2 passes over each list.
-	// 1st pass: collect items to add.
-	// 2nd pass: build output while preserving original order of keys.
-
-	//
-	// 1st pass
-	//
-	attrsBykey := make(map[string]slog.Attr, maxLength)
-
-	// Start with items from prevList. Items that are later in prevList take
-	// precedence over items with the same key that appear earlier in prevList.
-	for _, attr := range prevList {
-		attrsBykey[attr.Key] = attr
-	}
-
-	// Then look through nextList. Same idea as prevList: allow later items with
-	// same key to take precedence over earlier items. But also, any item in
-	// nextList with the same key as an item in prevList will take precedence.
-	for _, attr := range nextList {
-		attrsBykey[attr.Key] = attr
-	}
-
-	//
-	// 2nd pass
-	//
-	addedKeys := make(map[string]struct{}, maxLength)
-	out := make([]slog.Attr, 0, maxLength)
-	var found bool
-
-	// Look at items collected from nextList, and add them to output unless
-	// we've already seen the value.
-	for _, attr := range nextList {
-		if _, found = addedKeys[attr.Key]; !found {
-			out = append(out, attrsBykey[attr.Key])
-			addedKeys[attr.Key] = struct{}{} // prevent further re-adding to output list
-		}
-	}
-
-	// Now look at items from prevList, and only add the item if its key is
-	// unique to prevList.
-	for _, attr := range prevList {
-		if _, found = addedKeys[attr.Key]; !found {
-			out = append(out, attrsBykey[attr.Key])
-			addedKeys[attr.Key] = struct{}{} // prevent further re-adding to output list
-		}
-	}
-
-	return slices.Clip(out)
+	out := make([]slog.Attr, len(prevList), len(prevList)+len(nextList))
+	copy(out, prevList)
+	return append(out, nextList...)
 }
