@@ -1,7 +1,7 @@
 GO ?= go
 GOSEC ?= gosec
 
-SRC_PKG_PATH=github.com/rafaelespinoza/logg
+SRC_PKG_PATH=github.com/rafaelespinoza/logg/...
 
 .PHONY: all deps build vet test gosec
 
