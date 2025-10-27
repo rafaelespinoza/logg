@@ -1,160 +1,126 @@
+// Package logg is a thin wrapper around log/slog to decorate a [slog.Logger]
+// with commonly-needed metadata for applications and events. Events will have
+// the same keys described by the slog package for built-in attributes; ie:
+// "time", "level", "msg", "source".
+//
+// Additionally, these default top-level keys may be present:
+//
+//   - "application_metadata": []slog.Attr. ie: version control data, build
+//     times, etc.
+//   - "trace_id": string. A tracing ID, may be present for output from
+//     loggers created via [New]
+//   - "data": []slog.Attr. Event-specific attributes, may be present for output
+//     from loggers created with [New].
+//
+// These key names may be configured with the [SetDefaults] function.
 package logg
 
 import (
-	"context"
+	"cmp"
 	"log/slog"
-	"os"
 	"slices"
-	"sync/atomic"
 )
-
-var root atomic.Pointer[logger]
 
 const libraryMsgPrefix = "logg: "
 
-func init() {
-	defaultOutput := os.Stderr
-	defaultLevel := slog.LevelInfo
-	defaultHandler := slog.NewJSONHandler(defaultOutput, &slog.HandlerOptions{Level: defaultLevel})
-	Setup(defaultHandler)
+// Settings is package configuration data for overriding package defaults via
+// [SetDefaults]. ApplicationMetadata could be versioning metadata, ie: commit
+// hash, build time, etc. The placement of this data within a logging event can
+// be set with ApplicationMetadataKey. The location of event tracing IDs can be
+// set with TraceIDKey. Other event-specific attributes would be placed at
+// DataKey.
+type Settings struct {
+	ApplicationMetadata    []slog.Attr
+	ApplicationMetadataKey string
+	TraceIDKey             string
+	DataKey                string
 }
 
-// Setup initializes a package-level prototype logger from which subsequent logs
-// are based upon. The default settings are to write to os.Stderr at the INFO
-// level in line-delimited JSON format. Top-level functions such as Info and
-// Error use this logger. Loggers created with [New] consider values set in this
-// function as defaults.
+var defaults = Settings{
+	ApplicationMetadata:    []slog.Attr{},
+	ApplicationMetadataKey: "application_metadata",
+	TraceIDKey:             "trace_id",
+	DataKey:                "data",
+}
+
+// SetDefaults initializes a package-level prototype logger from which
+// subsequent logs are based upon. This function is intended to be called only
+// once, shortly after application startup. It will also call the
+// [slog.SetDefault] function, thereby affecting all output functionality in
+// that package. Loggers created with [New] consider values set in this function
+// as defaults. When the handler input h, is empty, then the current Handler
+// value of [slog.Default] is used. When the input settings is empty, then
+// defaults are used. Default settings are mentioned in the package
+// documentation.
 //
-// The version parameter may be empty, but it's recommended to put some metadata
-// here so you can associate an event with the source code version. The
-// attributes in version will be part of "version" group for subsequent log
-// events, including those an Emitter created via [New].
-func Setup(h slog.Handler, version ...slog.Attr) {
-	lgr := newSlogger(h, version...)
-	r := newLogger(lgr, version, "")
-
-	root.Store(r)
-	rootLogger().lgr.Debug(libraryMsgPrefix + "setup root logger")
-}
-
-// Error writes msg to the log at level ERROR and additionally writes err to an
-// error field.
-func Error(err error, msg string, attrs ...slog.Attr) {
-	log(context.Background(), rootLogger().lgr, slog.LevelError, err, msg, "", attrs...)
-}
-
-// Info writes msg to the log at level INFO.
-func Info(msg string, attrs ...slog.Attr) {
-	log(context.Background(), rootLogger().lgr, slog.LevelInfo, nil, msg, "", attrs...)
-}
-
-// An Emitter writes to the log at info or error levels.
-type Emitter interface {
-	Info(msg string, attrs ...slog.Attr)
-	Error(err error, msg string, attrs ...slog.Attr)
-	WithID(ctx context.Context) Emitter
-	WithData(attrs []slog.Attr) Emitter
-}
-
-func rootLogger() *logger {
-	return root.Load()
-}
-
-// mergeAttrs combines and deduplicates the input lists into a new list
-// according to this logic:
-//
-//   - if a key is duplicated within the same list, then the item that appears
-//     later in that list has higher precedence.
-//   - if a key is found in both lists, then the item in nextList has higher
-//     precedence than an item with the same key from prevList.
-//   - if a key is unique to either list, then it will be in the output.
-//
-// The output list is a new slice, neither input list is modified.
-func mergeAttrs(prevList, nextList []slog.Attr) []slog.Attr {
-	maxLength := max(len(prevList), len(nextList))
-
-	// 2 passes over each list.
-	// 1st pass: collect items to add.
-	// 2nd pass: build output while preserving original order of keys.
-
-	//
-	// 1st pass
-	//
-	attrsBykey := make(map[string]slog.Attr, maxLength)
-
-	// Start with items from prevList. Items that are later in prevList take
-	// precedence over items with the same key that appear earlier in prevList.
-	for _, attr := range prevList {
-		attrsBykey[attr.Key] = attr
+// The side effects of this function may put this data at top-level keys for
+// every log entry:
+//   - application metadata.
+//   - a trace ID value, only present when a logger is created via [New].
+//   - event-specific  data attributes.
+func SetDefaults(h slog.Handler, settings *Settings) {
+	if h == nil {
+		h = slog.Default().Handler()
+	}
+	if settings == nil {
+		settings = &Settings{}
 	}
 
-	// Then look through nextList. Same idea as prevList: allow later items with
-	// same key to take precedence over earlier items. But also, any item in
-	// nextList with the same key as an item in prevList will take precedence.
-	for _, attr := range nextList {
-		attrsBykey[attr.Key] = attr
+	appMetadata := defaults.ApplicationMetadata
+	// either you want to set the value to something, or you want to unset it
+	// altogether.
+	if len(settings.ApplicationMetadata) > 0 || settings.ApplicationMetadata == nil {
+		appMetadata = settings.ApplicationMetadata
 	}
 
-	//
-	// 2nd pass
-	//
-	addedKeys := make(map[string]struct{}, maxLength)
-	out := make([]slog.Attr, 0, maxLength)
-	var found bool
-
-	// Look at items collected from nextList, and add them to output unless
-	// we've already seen the value.
-	for _, attr := range nextList {
-		if _, found = addedKeys[attr.Key]; !found {
-			out = append(out, attrsBykey[attr.Key])
-			addedKeys[attr.Key] = struct{}{} // prevent further re-adding to output list
-		}
+	nextSettings := Settings{
+		ApplicationMetadata:    slices.Clone(appMetadata),
+		ApplicationMetadataKey: cmp.Or(settings.ApplicationMetadataKey, defaults.ApplicationMetadataKey),
+		TraceIDKey:             cmp.Or(settings.TraceIDKey, defaults.TraceIDKey),
+		DataKey:                cmp.Or(settings.DataKey, defaults.DataKey),
 	}
+	defaults = nextSettings
 
-	// Now look at items from prevList, and only add the item if its key is
-	// unique to prevList.
-	for _, attr := range prevList {
-		if _, found = addedKeys[attr.Key]; !found {
-			out = append(out, attrsBykey[attr.Key])
-			addedKeys[attr.Key] = struct{}{} // prevent further re-adding to output list
-		}
-	}
+	nextSlogger := newSlogger(h, defaults, "")
+	slog.SetDefault(nextSlogger)
 
-	return slices.Clip(out)
+	slog.Debug(libraryMsgPrefix + "set default logger")
 }
 
-// Logging entry keys.
-const (
-	// versionFieldName is the logging entry key for application versioning info.
-	versionFieldName = "version"
-	// errorFieldName is the logging entry key for an error.
-	errorFieldName = "error"
-	// traceIDFieldName is the logging entry key for a tracing ID.
-	traceIDFieldName = "x_trace_id"
-	// dataFieldName is the logging entry key for any event-specific data.
-	dataFieldName = "data"
-)
-
-func log(ctx context.Context, lgr *slog.Logger, v slog.Level, err error, msg string, traceID string, attrs ...slog.Attr) {
-	if !lgr.Enabled(ctx, v) {
-		return
+// New creates a [slog.Logger], with configuration set via [SetDefaults]. The
+// traceID, if non-empty, will be at a top-level key for subsequent logging
+// output with the created Logger. Similarly, dataAttrs will be grouped at a
+// top-level key.
+func New(h slog.Handler, traceID string, dataAttrs ...slog.Attr) *slog.Logger {
+	if h == nil {
+		h = slog.Default().Handler()
 	}
 
-	attrsToLog := make([]slog.Attr, 0, 3)
+	data := attrsToAnys(dataAttrs...)
+	return newSlogger(h, defaults, traceID).
+		WithGroup(defaults.DataKey).With(data...)
+}
 
-	if err != nil {
-		attrsToLog = append(attrsToLog, slog.Any(errorFieldName, err))
-	}
-
+func newSlogger(handler slog.Handler, settings Settings, traceID string) *slog.Logger {
+	attrs := make([]slog.Attr, 0, 2)
+	attrs = append(attrs, slog.Attr{
+		Key:   settings.ApplicationMetadataKey,
+		Value: slog.GroupValue(settings.ApplicationMetadata...),
+	})
 	if traceID != "" {
-		attrsToLog = append(attrsToLog, slog.String(traceIDFieldName, traceID))
+		attrs = append(attrs, slog.String(settings.TraceIDKey, traceID))
 	}
+	args := attrsToAnys(attrs...)
 
-	if len(attrs) > 0 {
-		attrsToLog = append(attrsToLog, slog.GroupAttrs(dataFieldName, attrs...))
+	lgr := slog.New(handler).With(args...)
+	lgr.Debug(libraryMsgPrefix + "initialized logger")
+	return lgr
+}
+
+func attrsToAnys(in ...slog.Attr) (out []any) {
+	out = make([]any, len(in))
+	for i, attr := range in {
+		out[i] = attr
 	}
-
-	attrsToLog = slices.Clip(attrsToLog)
-
-	lgr.LogAttrs(ctx, v, msg, attrsToLog...)
+	return
 }
