@@ -4,23 +4,16 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+
+	"github.com/rafaelespinoza/logg/internal"
 )
 
 func makeJSONRecordCapturer(w io.Writer) func(r slog.Record) error {
 	return func(r slog.Record) error {
-		attrs := getRecordAttrs(r)
+		attrs := internal.GetRecordAttrs(r)
 		mappedAttrs := mapAttrs(attrs)
 		return json.NewEncoder(w).Encode(mappedAttrs)
 	}
-}
-
-func getRecordAttrs(r slog.Record) []slog.Attr {
-	out := make([]slog.Attr, 0, r.NumAttrs())
-	r.Attrs(func(a slog.Attr) bool {
-		out = append(out, a)
-		return true
-	})
-	return out
 }
 
 func mapAttrs(attrs []slog.Attr) map[string]any {

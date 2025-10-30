@@ -84,7 +84,7 @@ func TestAttrHandler(t *testing.T) {
 				if t.Failed() {
 					return
 				}
-				attrs := getRecordAttrs(got[0])
+				attrs := internal.GetRecordAttrs(got[0])
 				checkForAttrWithKey(t, attrs, "timestamp")
 			},
 		},
@@ -112,7 +112,7 @@ func TestAttrHandler(t *testing.T) {
 				if t.Failed() {
 					return
 				}
-				attrs := getRecordAttrs(got[0])
+				attrs := internal.GetRecordAttrs(got[0])
 				checkForAttrWithKey(t, attrs, "sev")
 			},
 		},
@@ -132,7 +132,7 @@ func TestAttrHandler(t *testing.T) {
 				}
 				const targetKey = "source"
 				targetAttrs := make([]slog.Attr, 0, 1)
-				for _, attr := range getRecordAttrs(got[0]) {
+				for _, attr := range internal.GetRecordAttrs(got[0]) {
 					if attr.Key == targetKey {
 						targetAttrs = append(targetAttrs, attr)
 					}

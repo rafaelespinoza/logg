@@ -357,3 +357,13 @@ func mergeGroups(prev, next slog.Attr) (slog.Attr, error) {
 	out := slog.GroupAttrs(prev.Key, merged...)
 	return out, nil
 }
+
+// GetRecordAttrs collects each attribute on the record.
+func GetRecordAttrs(r slog.Record) []slog.Attr {
+	out := make([]slog.Attr, 0, r.NumAttrs())
+	r.Attrs(func(a slog.Attr) bool {
+		out = append(out, a)
+		return true
+	})
+	return out
+}
