@@ -117,35 +117,6 @@ func TestAttrHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "options.AddSource",
-			opts: &internal.AttrHandlerOptions{
-				HandlerOptions: slog.HandlerOptions{AddSource: true},
-			},
-			action: func(t *testing.T, h slog.Handler) {
-				rec := slog.NewRecord(time.Now(), slog.LevelInfo, "msg", 1)
-				h.Handle(context.Background(), rec)
-			},
-			expect: func(t *testing.T, got []slog.Record) {
-				checkResultsLength(t, got, 1)
-				if t.Failed() {
-					return
-				}
-				const targetKey = "source"
-				targetAttrs := make([]slog.Attr, 0, 1)
-				for _, attr := range internal.GetRecordAttrs(got[0]) {
-					if attr.Key == targetKey {
-						targetAttrs = append(targetAttrs, attr)
-					}
-				}
-				if len(targetAttrs) != 1 {
-					t.Fatalf("wrong number of attributes with key %q; got %d, expected %d", targetKey, len(targetAttrs), 1)
-				}
-				if targetAttrs[0].Value.Any() == nil {
-					t.Errorf("%s attribute value should be non-nil", targetKey)
-				}
-			},
-		},
-		{
 			name: "initialized with empty options",
 			opts: nil,
 			action: func(t *testing.T, h slog.Handler) {

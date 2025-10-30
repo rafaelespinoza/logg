@@ -19,6 +19,8 @@ import (
 	"cmp"
 	"log/slog"
 	"slices"
+
+	"github.com/rafaelespinoza/logg/internal"
 )
 
 const libraryMsgPrefix = "logg: "
@@ -112,10 +114,7 @@ func New(traceID string, dataAttrs ...slog.Attr) *slog.Logger {
 
 func newSlogger(handler slog.Handler, settings Settings, traceID string) *slog.Logger {
 	attrs := make([]slog.Attr, 0, 2)
-	attrs = append(attrs, slog.Attr{
-		Key:   settings.ApplicationMetadataKey,
-		Value: slog.GroupValue(settings.ApplicationMetadata...),
-	})
+	attrs = append(attrs, internal.SlogGroupAttrs(settings.ApplicationMetadataKey, settings.ApplicationMetadata...))
 	if traceID != "" {
 		attrs = append(attrs, slog.String(settings.TraceIDKey, traceID))
 	}
