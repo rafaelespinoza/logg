@@ -180,7 +180,7 @@ func TestSetDefaults(t *testing.T) {
 			t.Fatalf("wrong number of record attrs; got %d, expected %d", len(gotRecords), 1)
 		}
 		gotAttrs := internal.GetRecordAttrs(gotRecords[0])
-		testGroupAttr(t, gotAttrs, slog.GroupAttrs("application_metadata", slog.String("foo", "bar")))
+		testGroupAttr(t, gotAttrs, internal.SlogGroupAttrs("application_metadata", slog.String("foo", "bar")))
 	})
 
 	t.Run("settings.ApplicationMetadataKey", func(t *testing.T) {
@@ -198,7 +198,7 @@ func TestSetDefaults(t *testing.T) {
 			t.Fatalf("wrong number of record attrs; got %d, expected %d", len(gotRecords), 1)
 		}
 		gotAttrs := internal.GetRecordAttrs(gotRecords[0])
-		testGroupAttr(t, gotAttrs, slog.GroupAttrs("metadata",
+		testGroupAttr(t, gotAttrs, internal.SlogGroupAttrs("metadata",
 			slog.String("branch_name", "dev"),
 			slog.String("build_time", "now"),
 		))
@@ -233,7 +233,7 @@ func TestSetDefaults(t *testing.T) {
 			t.Fatalf("wrong number of record attrs; got %d, expected %d", len(gotRecords), 1)
 		}
 		gotAttrs := internal.GetRecordAttrs(gotRecords[0])
-		testGroupAttr(t, gotAttrs, slog.GroupAttrs("message_data",
+		testGroupAttr(t, gotAttrs, internal.SlogGroupAttrs("message_data",
 			slog.String("sierra", "nevada"),
 			slog.String("foo", "bar")),
 		)
@@ -283,7 +283,7 @@ func TestNew(t *testing.T) {
 			t.Fatalf("wrong number of record attrs; got %d, expected %d", len(gotRecords), 1)
 		}
 		gotAttrs := internal.GetRecordAttrs(gotRecords[0])
-		testGroupAttr(t, gotAttrs, slog.GroupAttrs("data", slog.String("sierra", "nevada")))
+		testGroupAttr(t, gotAttrs, internal.SlogGroupAttrs("data", slog.String("sierra", "nevada")))
 	})
 
 	t.Run("log with data attrs", func(t *testing.T) {
@@ -296,7 +296,7 @@ func TestNew(t *testing.T) {
 			t.Fatalf("wrong number of record attrs; got %d, expected %d", len(gotRecords), 1)
 		}
 		gotAttrs := internal.GetRecordAttrs(gotRecords[0])
-		testGroupAttr(t, gotAttrs, slog.GroupAttrs("data",
+		testGroupAttr(t, gotAttrs, internal.SlogGroupAttrs("data",
 			slog.String("sierra", "nevada"),
 			slog.Bool("bravo", true),
 		))

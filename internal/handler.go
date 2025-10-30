@@ -41,10 +41,6 @@ func (h *AttrHandler) Enabled(ctx context.Context, lvl slog.Level) bool {
 		level = h.opts.Level.Level()
 	}
 	enabled := lvl >= level
-	// Unlike other methods which invoke a slog function such as Debug, this
-	// Handler method does not do that because there would be stackoverflow if
-	// this Handler type was made the handler for the slog.Default logger, or
-	// was wrapped as one of the handlers for the slog.Default logger.
 	return enabled
 }
 
@@ -143,20 +139,6 @@ func (h *AttrHandler) buildRecordAttrs(rec slog.Record) (out []slog.Attr) {
 	}
 	out = append(out, levelAttr)
 
-	// From the log/slog.Handler docs:
-	// 	- If r.PC is zero, ignore it.
-	if rec.PC != 0 {
-		src := rec.Source()
-		if src == nil {
-			src = &slog.Source{}
-		}
-		srcAttr := slog.Any(slog.SourceKey, src)
-		if replaceAttr != nil {
-			srcAttr = replaceAttr([]string{}, srcAttr)
-		}
-		out = append(out, srcAttr)
-	}
-
 	msgAttr := slog.String(slog.MessageKey, rec.Message)
 	if replaceAttr != nil {
 		msgAttr = replaceAttr([]string{}, msgAttr)
@@ -210,7 +192,7 @@ func (h *AttrHandler) buildRecordAttrs(rec slog.Record) (out []slog.Attr) {
 			group := attr.Value.Group()
 
 			if attr.Key != "" {
-				recordAttrs = append(recordAttrs, slog.GroupAttrs(attr.Key, group...))
+				recordAttrs = append(recordAttrs, SlogGroupAttrs(attr.Key, group...))
 			} else {
 				// From the log/slog.Handler docs:
 				// 	- If a group's key is empty, inline the group's Attrs.
@@ -255,13 +237,13 @@ func applyGroupsToAttrs(groups []string, data []slog.Attr) []slog.Attr {
 	// the groups slice. For example, if groups is ["level1", "level2"], we
 	// first wrap data in a group with key "level2", then wrap that result in a
 	// group with key "level1".
-	curr := slog.GroupAttrs(groups[len(groups)-1], data...)
+	curr := SlogGroupAttrs(groups[len(groups)-1], data...)
 
 	for i := len(groups) - 2; i >= 0; i-- {
 		groupName := groups[i]
 
 		// Wrap the current group in another group and move up a level.
-		curr = slog.GroupAttrs(groupName, curr)
+		curr = SlogGroupAttrs(groupName, curr)
 	}
 
 	return []slog.Attr{curr}
@@ -354,7 +336,7 @@ func mergeGroups(prev, next slog.Attr) (slog.Attr, error) {
 
 	prevGroup, nextGroup := prev.Value.Group(), next.Value.Group()
 	merged := mergeAttrs(prevGroup, nextGroup)
-	out := slog.GroupAttrs(prev.Key, merged...)
+	out := SlogGroupAttrs(prev.Key, merged...)
 	return out, nil
 }
 
@@ -366,4 +348,12 @@ func GetRecordAttrs(r slog.Record) []slog.Attr {
 		return true
 	})
 	return out
+}
+
+// SlogGroupAttrs is a [slog.GroupAttrs] polyfill/shim for golang versions < v1.25.
+func SlogGroupAttrs(key string, attrs ...slog.Attr) slog.Attr {
+	return slog.Attr{
+		Key:   key,
+		Value: slog.GroupValue(attrs...),
+	}
 }
