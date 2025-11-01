@@ -99,14 +99,12 @@ func SetDefaults(h slog.Handler, settings *Settings) {
 	slog.Debug(libraryMsgPrefix + "set default logger")
 }
 
-// New creates a [slog.Logger], with configuration set via [SetDefaults]. The
-// traceID, if non-empty, will be at a top-level key for subsequent logging
-// output with the created Logger. Similarly, dataAttrs will be grouped at a
-// top-level key.
-func New(h slog.Handler, traceID string, dataAttrs ...slog.Attr) *slog.Logger {
-	if h == nil {
-		h = defaultHandler
-	}
+// New creates a [slog.Logger], with the same configuration and handler set via
+// [SetDefaults]. The traceID, if non-empty, will be at a top-level key for
+// subsequent logging output with the created Logger. Similarly, dataAttrs will
+// be grouped at a top-level key.
+func New(traceID string, dataAttrs ...slog.Attr) *slog.Logger {
+	h := defaultHandler
 	data := attrsToAnys(dataAttrs...)
 	return newSlogger(h, defaults, traceID).
 		WithGroup(defaults.DataKey).With(data...)

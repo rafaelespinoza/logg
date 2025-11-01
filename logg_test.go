@@ -194,7 +194,7 @@ func TestSetDefaults(t *testing.T) {
 			TraceIDKey: "id",
 		})
 
-		logg.New(nil, "trace_id").Info("settings.TraceIDKey")
+		logg.New("trace_id").Info("settings.TraceIDKey")
 
 		var parsedRoot map[string]any
 		if err := json.Unmarshal(sink.Raw(), &parsedRoot); err != nil {
@@ -212,7 +212,7 @@ func TestSetDefaults(t *testing.T) {
 			DataKey: "message_data",
 		})
 
-		logg.New(nil, "", slog.String("sierra", "nevada")).Info("settings.DataKey", slog.String("foo", "bar"))
+		logg.New("", slog.String("sierra", "nevada")).Info("settings.DataKey", slog.String("foo", "bar"))
 
 		var parsedRoot map[string]any
 		if err := json.Unmarshal(sink.Raw(), &parsedRoot); err != nil {
@@ -227,27 +227,12 @@ func TestNew(t *testing.T) {
 	setupPackageVars()
 	t.Cleanup(func() { setupPackageVars() })
 
-	t.Run("handler nil", func(t *testing.T) {
+	t.Run("trace ID", func(t *testing.T) {
 		t.Cleanup(func() { setupPackageVars() })
-
 		sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
 		logg.SetDefaults(handler, nil)
 
-		// When called with nil handler, then it writes to the
-		// package-configured logger.
-		slogger := logg.New(nil, "")
-
-		slogger.Info(t.Name())
-
-		if len(sink.Raw()) < 1 {
-			t.Error("did not write data")
-		}
-	})
-
-	t.Run("trace ID", func(t *testing.T) {
-		sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
-
-		slogger := logg.New(handler, "tracing_id")
+		slogger := logg.New("tracing_id")
 
 		slogger.Info("with trace ID")
 
@@ -259,9 +244,11 @@ func TestNew(t *testing.T) {
 	})
 
 	t.Run("without trace ID", func(t *testing.T) {
+		t.Cleanup(func() { setupPackageVars() })
 		sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
+		logg.SetDefaults(handler, nil)
 
-		slogger := logg.New(handler, "")
+		slogger := logg.New("")
 
 		slogger.Info("without trace ID")
 
@@ -273,9 +260,11 @@ func TestNew(t *testing.T) {
 	})
 
 	t.Run("with data attrs", func(t *testing.T) {
+		t.Cleanup(func() { setupPackageVars() })
 		sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
+		logg.SetDefaults(handler, nil)
 
-		slogger := logg.New(handler, "", slog.String("sierra", "nevada"))
+		slogger := logg.New("", slog.String("sierra", "nevada"))
 
 		slogger.Info("with data attrs")
 
@@ -287,8 +276,11 @@ func TestNew(t *testing.T) {
 	})
 
 	t.Run("initialized with data attrs and log with data attrs", func(t *testing.T) {
+		t.Cleanup(func() { setupPackageVars() })
 		sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
-		slogger := logg.New(handler, "", slog.String("sierra", "nevada"))
+		logg.SetDefaults(handler, nil)
+
+		slogger := logg.New("", slog.String("sierra", "nevada"))
 
 		slogger.Info("hello", slog.Bool("bravo", true))
 
@@ -313,7 +305,7 @@ func TestNew(t *testing.T) {
 			ApplicationMetadataKey: "application_metadata",
 		})
 
-		alogger := logg.New(nil, "")
+		alogger := logg.New("")
 		alogger.Info("hello")
 
 		rawLogEntry := string(sink.Raw())
@@ -323,7 +315,7 @@ func TestNew(t *testing.T) {
 			t.Logf("%s", rawLogEntry)
 		}
 
-		blogger := logg.New(nil, "")
+		blogger := logg.New("")
 		blogger.Info("hello")
 
 		rawLogEntry = string(sink.Raw())

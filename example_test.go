@@ -83,23 +83,17 @@ func ExampleSetDefaults() {
 
 // Initialize the logger with or without data fields.
 func ExampleNew() {
-	// An empty input handler makes a logger that writes to the same handler
-	// provisioned in SetupDefaults. This logger has its own data fields.
-	logger := logg.New(nil, "", slog.Bool("whiskey", true), slog.Float64("tango", 1.23), slog.Int("foxtrot", 10))
+	// Writes with the same handler provisioned in SetupDefaults.
+	// This logger has its own data fields.
+	logger := logg.New("", slog.Bool("whiskey", true), slog.Float64("tango", 1.23), slog.Int("foxtrot", 10))
 	logger.Info("hello, world")
 
 	// This logger also writes to the package configured handler, but doesn't
 	// have any data fields of its own.
-	loggerNoFields := logg.New(nil, "")
+	loggerNoFields := logg.New("")
 	loggerNoFields.Info("no data fields here")
 
 	// This logger has its own tracing ID.
-	loggerWithTraceID := logg.New(nil, "unique_trace_id")
+	loggerWithTraceID := logg.New("unique_trace_id")
 	loggerWithTraceID.Info("that happened")
-
-	// This logger writes to another Handler altogether, which might be useful
-	// for testing.
-	var handler slog.Handler
-	loggerOwnHandler := logg.New(handler, "")
-	loggerOwnHandler.Info("test")
 }
