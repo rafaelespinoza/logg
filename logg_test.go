@@ -135,11 +135,11 @@ func TestSetDefaults(t *testing.T) {
 	t.Run("handler nil", func(t *testing.T) {
 		t.Cleanup(func() { setupPackageVars() })
 
-		// When called with nil handler, then it writes to whatever the
-		// slog.Default logger is.
 		sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
-		slog.SetDefault(slog.New(handler))
+		logg.SetDefaults(handler, nil)
 
+		// When called with nil handler, then it writes to the
+		// package-configured logger.
 		logg.SetDefaults(nil, nil)
 
 		slog.Info(t.Name())
@@ -225,15 +225,16 @@ func TestSetDefaults(t *testing.T) {
 
 func TestNew(t *testing.T) {
 	setupPackageVars()
+	t.Cleanup(func() { setupPackageVars() })
 
-	t.Run("handler empty", func(t *testing.T) {
+	t.Run("handler nil", func(t *testing.T) {
 		t.Cleanup(func() { setupPackageVars() })
 
-		// When called with nil handler, then it writes to whatever the
-		// slog.Default logger is.
 		sink, handler := newDataSinkAndJSONHandler(slog.LevelInfo)
-		slog.SetDefault(slog.New(handler))
+		logg.SetDefaults(handler, nil)
 
+		// When called with nil handler, then it writes to the
+		// package-configured logger.
 		slogger := logg.New(nil, "")
 
 		slogger.Info(t.Name())
@@ -296,6 +297,41 @@ func TestNew(t *testing.T) {
 			t.Fatal(err)
 		}
 		testData(t, parsedRoot, "data", []slog.Attr{slog.String("sierra", "nevada"), slog.Bool("bravo", true)})
+	})
+
+	t.Run("application_metadata key not duplicated", func(t *testing.T) {
+		// For this test, do not use the JSON handler and do not parse the JSON
+		// because the parsing step would deduplicate the keys. This would
+		// defeat the purpose of detecting duplicate keys in the raw log
+		// message. Instead, inspect the data without parsing it. This test
+		// assumes that the targeted values are keys. For this reason, build the
+		// message as simple as necessary.
+		sink := newDataSink()
+		handler := slog.NewTextHandler(sink, nil)
+		logg.SetDefaults(handler, &logg.Settings{
+			ApplicationMetadata:    []slog.Attr{slog.String("foo", "bar")},
+			ApplicationMetadataKey: "application_metadata",
+		})
+
+		alogger := logg.New(nil, "")
+		alogger.Info("hello")
+
+		rawLogEntry := string(sink.Raw())
+		count := strings.Count(rawLogEntry, `application_metadata.foo=bar`)
+		if count != 1 {
+			t.Errorf("wrong count of substring found; got %d, expected %d", count, 1)
+			t.Logf("%s", rawLogEntry)
+		}
+
+		blogger := logg.New(nil, "")
+		blogger.Info("hello")
+
+		rawLogEntry = string(sink.Raw())
+		count = strings.Count(rawLogEntry, `application_metadata.foo=bar`)
+		if count != 1 {
+			t.Errorf("wrong count of substring found; got %d, expected %d", count, 1)
+			t.Logf("%s", rawLogEntry)
+		}
 	})
 }
 

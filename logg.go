@@ -43,6 +43,17 @@ var defaults = Settings{
 	DataKey:                "data",
 }
 
+// defaultHandler is an untouched slog.Handler meant as a reference for building
+// new loggers. Calling the .WithAttrs or .WithGroup methods on a [slog.Handler]
+// returns a new Handler with different attributes or groups than before. When
+// building new loggers in this package, we want to start with something that
+// doesn't already have any groups or attributes added to it yet. Therefore, we
+// can't use the Handler for [slog.Default]; at least not after calling the
+// [slog.SetDefault] function later on from [SetDefaults]. For the
+// initialization of this package, trust that initial value retrieved from slog
+// is also an untouched handler.
+var defaultHandler = slog.Default().Handler()
+
 // SetDefaults initializes a package-level prototype logger from which
 // subsequent logs are based upon. This function is intended to be called only
 // once, shortly after application startup. It will also call the
@@ -59,9 +70,6 @@ var defaults = Settings{
 //   - a trace ID value, only present when a logger is created via [New].
 //   - event-specific  data attributes.
 func SetDefaults(h slog.Handler, settings *Settings) {
-	if h == nil {
-		h = slog.Default().Handler()
-	}
 	if settings == nil {
 		settings = &Settings{}
 	}
@@ -72,6 +80,9 @@ func SetDefaults(h slog.Handler, settings *Settings) {
 	if len(settings.ApplicationMetadata) > 0 || settings.ApplicationMetadata == nil {
 		appMetadata = settings.ApplicationMetadata
 	}
+	if h == nil {
+		h = defaultHandler
+	}
 
 	nextSettings := Settings{
 		ApplicationMetadata:    slices.Clone(appMetadata),
@@ -80,6 +91,7 @@ func SetDefaults(h slog.Handler, settings *Settings) {
 		DataKey:                cmp.Or(settings.DataKey, defaults.DataKey),
 	}
 	defaults = nextSettings
+	defaultHandler = h
 
 	nextSlogger := newSlogger(h, defaults, "")
 	slog.SetDefault(nextSlogger)
@@ -93,9 +105,8 @@ func SetDefaults(h slog.Handler, settings *Settings) {
 // top-level key.
 func New(h slog.Handler, traceID string, dataAttrs ...slog.Attr) *slog.Logger {
 	if h == nil {
-		h = slog.Default().Handler()
+		h = defaultHandler
 	}
-
 	data := attrsToAnys(dataAttrs...)
 	return newSlogger(h, defaults, traceID).
 		WithGroup(defaults.DataKey).With(data...)
