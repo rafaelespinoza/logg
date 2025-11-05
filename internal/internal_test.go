@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
+	"maps"
 	"os"
+	"slices"
 	"testing"
 	"testing/slogtest"
 	"time"
@@ -130,6 +133,42 @@ func TestAttrHandler(t *testing.T) {
 				checkResultsLength(t, got, 0)
 			},
 		},
+		{
+			name: "deep group",
+			opts: &internal.AttrHandlerOptions{},
+			action: func(t *testing.T, h slog.Handler) {
+				rec := slog.NewRecord(time.Now(), slog.LevelInfo, "msg", 0)
+				rec.AddAttrs(internal.SlogGroupAttrs("G",
+					internal.SlogGroupAttrs("H", slog.Bool("deep", true)),
+				))
+				err := h.Handle(context.Background(), rec)
+				if err != nil {
+					t.Error(err)
+				}
+			},
+			expect: func(t *testing.T, got []slog.Record) {
+				if checkResultsLength(t, got, 1); t.Failed() {
+					return
+				}
+
+				attrs := internal.GetRecordAttrs(got[0])
+				groupG := collectMatchingAttrs(t, attrs, func(a slog.Attr) bool {
+					return a.Key == "G" && a.Value.Kind() == slog.KindGroup
+				})
+
+				if checkResultsLength(t, groupG, 1); t.Failed() {
+					return
+				}
+				groupH := collectMatchingAttrs(t, groupG[0].Value.Group(), func(a slog.Attr) bool {
+					return a.Key == "H" && a.Value.Kind() == slog.KindGroup
+				})
+
+				if checkResultsLength(t, groupH, 1); t.Failed() {
+					return
+				}
+				checkForAttrWithKey(t, groupH[0].Value.Group(), "deep")
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -138,6 +177,7 @@ func TestAttrHandler(t *testing.T) {
 			if test.opts != nil {
 				test.opts.CaptureRecord = func(r slog.Record) error {
 					got = append(got, r)
+					printRecordAttrsJSON(t, r)
 					return nil
 				}
 			}
@@ -245,6 +285,109 @@ func TestAttrHandlerNoCapture(t *testing.T) {
 	}
 }
 
+func makeJSONRecordCapturer(w io.Writer) func(r slog.Record) error {
+	return func(r slog.Record) error {
+		attrs := internal.GetRecordAttrs(r)
+		mappedAttrs := mapAttrs(attrs)
+		return json.NewEncoder(w).Encode(mappedAttrs)
+	}
+}
+
+func mapAttrs(attrs []slog.Attr) map[string]any {
+	out := make(map[string]any, len(attrs))
+
+	for _, attr := range attrs {
+		prevVal, exists := out[attr.Key]
+		if !exists {
+			out[attr.Key] = slogValueToAny(attr.Value)
+			continue
+		}
+
+		prevMap, isMap := prevVal.(map[string]any)
+		if isMap && attr.Value.Kind() == slog.KindGroup {
+			currMap := mapAttrs(attr.Value.Group())
+			out[attr.Key] = mergeMaps(prevMap, currMap)
+		}
+	}
+
+	return out
+}
+
+func slogValueToAny(val slog.Value) (out any) {
+	switch val.Kind() {
+	case slog.KindAny:
+		out = val.Any()
+	case slog.KindBool:
+		out = val.Bool()
+	case slog.KindDuration:
+		out = val.Duration()
+	case slog.KindFloat64:
+		out = val.Float64()
+	case slog.KindInt64:
+		out = val.Int64()
+	case slog.KindString:
+		out = val.String()
+	case slog.KindTime:
+		out = val.Time()
+	case slog.KindUint64:
+		out = val.Uint64()
+	case slog.KindGroup:
+		out = mapAttrs(val.Group())
+	case slog.KindLogValuer:
+		out = val.LogValuer().LogValue()
+	default:
+		out = val.Any()
+	}
+	return
+}
+
+func mergeMaps(prev, next map[string]any) map[string]any {
+	if len(prev) > 0 && len(next) < 1 {
+		return prev
+	} else if len(prev) < 1 && len(next) > 0 {
+		return next
+	} else if len(prev) < 1 && len(next) < 1 {
+		return make(map[string]any, 0)
+	}
+
+	maxLength := max(len(prev), len(next))
+	out := make(map[string]any, maxLength)
+
+	for k := range prev {
+		out[k] = prev[k]
+	}
+
+	for nextKey, nextVal := range next {
+		prevVal, found := out[nextKey]
+		if !found {
+			out[nextKey] = nextVal
+			continue
+		}
+
+		prevGroup, prevIsGroup := prevVal.(map[string]any)
+		nextGroup, nextIsGroup := nextVal.(map[string]any)
+		if !prevIsGroup || !nextIsGroup {
+			out[nextKey] = nextVal
+			continue
+		}
+
+		out[nextKey] = mergeMaps(prevGroup, nextGroup)
+	}
+
+	maps.DeleteFunc(out, func(_ string, v any) bool { return v == nil })
+	return out
+}
+
+func printRecordAttrsJSON(t *testing.T, r slog.Record) {
+	t.Helper()
+
+	attrs := internal.GetRecordAttrs(r)
+	mappedAttrs := mapAttrs(attrs)
+	var buf bytes.Buffer
+	_ = json.NewEncoder(&buf).Encode(mappedAttrs)
+	t.Logf("%s", buf.String())
+}
+
 func checkResultsLength[T any](t *testing.T, got []T, expLen int) {
 	t.Helper()
 	if len(got) != expLen {
@@ -254,10 +397,24 @@ func checkResultsLength[T any](t *testing.T, got []T, expLen int) {
 
 func checkForAttrWithKey(t *testing.T, attrs []slog.Attr, targetKey string) {
 	t.Helper()
+
+	got := collectMatchingAttrs(t, attrs, func(a slog.Attr) bool {
+		return a.Key == targetKey
+	})
+	if len(got) < 1 {
+		t.Errorf("did not find expected key %s", targetKey)
+	}
+}
+
+func collectMatchingAttrs(t *testing.T, attrs []slog.Attr, match func(slog.Attr) bool) []slog.Attr {
+	t.Helper()
+
+	out := make([]slog.Attr, 0, len(attrs))
 	for _, attr := range attrs {
-		if attr.Key == targetKey {
-			return
+		if match(attr) {
+			out = append(out, attr)
 		}
 	}
-	t.Errorf("did not find expected key %s", targetKey)
+
+	return slices.Clip(out)
 }

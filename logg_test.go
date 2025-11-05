@@ -308,38 +308,29 @@ func TestNew(t *testing.T) {
 	t.Run("application_metadata key not duplicated", func(t *testing.T) {
 		t.Cleanup(func() { setupPackageVars() })
 
-		// For this test, do not use the JSON handler and do not parse the JSON
-		// because the parsing step would deduplicate the keys. This would
-		// defeat the purpose of detecting duplicate keys in the raw log
-		// message. Instead, inspect the data without parsing it. This test
-		// assumes that the targeted values are keys. For this reason, build the
-		// message as simple as necessary.
-		sink := newDataSink()
-		handler := slog.NewTextHandler(sink, nil)
-		logg.SetDefaults(handler, &logg.Settings{
-			ApplicationMetadata:    []slog.Attr{slog.String("foo", "bar")},
-			ApplicationMetadataKey: "application_metadata",
-		})
+		run := func(t *testing.T, h slog.Handler) {
+			logg.SetDefaults(h, &logg.Settings{
+				ApplicationMetadata:    []slog.Attr{slog.String("foo", "bar")},
+				ApplicationMetadataKey: "metadata",
+			})
 
-		alogger := logg.New("")
-		alogger.Info("hello")
+			alogger := logg.New("")
+			alogger.Info("hello")
 
-		rawLogEntry := string(sink.Raw())
-		count := strings.Count(rawLogEntry, `application_metadata.foo=bar`)
-		if count != 1 {
-			t.Errorf("wrong count of substring found; got %d, expected %d", count, 1)
-			t.Logf("%s", rawLogEntry)
+			blogger := logg.New("")
+			blogger.Info("hello")
+		}
+		gotRecords := collectRecords(t, slog.LevelInfo, run)
+
+		if len(gotRecords) != 2 {
+			t.Fatalf("wrong number of record attrs; got %d, expected %d", len(gotRecords), 1)
 		}
 
-		blogger := logg.New("")
-		blogger.Info("hello")
+		gotAttrs := internal.GetRecordAttrs(gotRecords[0])
+		testGroupAttr(t, gotAttrs, internal.SlogGroupAttrs("metadata", slog.String("foo", "bar")))
 
-		rawLogEntry = string(sink.Raw())
-		count = strings.Count(rawLogEntry, `application_metadata.foo=bar`)
-		if count != 1 {
-			t.Errorf("wrong count of substring found; got %d, expected %d", count, 1)
-			t.Logf("%s", rawLogEntry)
-		}
+		gotAttrs = internal.GetRecordAttrs(gotRecords[1])
+		testGroupAttr(t, gotAttrs, internal.SlogGroupAttrs("metadata", slog.String("foo", "bar")))
 	})
 }
 
