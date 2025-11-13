@@ -8,12 +8,12 @@ import (
 	"log/slog"
 	"maps"
 	"os"
-	"slices"
 	"testing"
 	"testing/slogtest"
 	"time"
 
 	"github.com/rafaelespinoza/logg/internal"
+	st "github.com/rafaelespinoza/logg/internal/slogtesting"
 )
 
 func TestSlogtest(t *testing.T) {
@@ -83,12 +83,9 @@ func TestAttrHandler(t *testing.T) {
 				}
 			},
 			expect: func(t *testing.T, got []slog.Record) {
-				checkResultsLength(t, got, 1)
-				if t.Failed() {
-					return
-				}
+				requireResultLen(t, got, 1)
 				attrs := internal.GetRecordAttrs(got[0])
-				checkForAttrWithKey(t, attrs, "timestamp")
+				st.TestHasKey("timestamp")(t, attrs)
 			},
 		},
 		{
@@ -111,12 +108,9 @@ func TestAttrHandler(t *testing.T) {
 				}
 			},
 			expect: func(t *testing.T, got []slog.Record) {
-				checkResultsLength(t, got, 1)
-				if t.Failed() {
-					return
-				}
+				requireResultLen(t, got, 1)
 				attrs := internal.GetRecordAttrs(got[0])
-				checkForAttrWithKey(t, attrs, "sev")
+				st.TestHasKey("sev")(t, attrs)
 			},
 		},
 		{
@@ -130,7 +124,7 @@ func TestAttrHandler(t *testing.T) {
 				}
 			},
 			expect: func(t *testing.T, got []slog.Record) {
-				checkResultsLength(t, got, 0)
+				requireResultLen(t, got, 0)
 			},
 		},
 		{
@@ -147,26 +141,14 @@ func TestAttrHandler(t *testing.T) {
 				}
 			},
 			expect: func(t *testing.T, got []slog.Record) {
-				if checkResultsLength(t, got, 1); t.Failed() {
-					return
-				}
-
+				requireResultLen(t, got, 1)
 				attrs := internal.GetRecordAttrs(got[0])
-				groupG := collectMatchingAttrs(t, attrs, func(a slog.Attr) bool {
-					return a.Key == "G" && a.Value.Kind() == slog.KindGroup
-				})
 
-				if checkResultsLength(t, groupG, 1); t.Failed() {
-					return
-				}
-				groupH := collectMatchingAttrs(t, groupG[0].Value.Group(), func(a slog.Attr) bool {
-					return a.Key == "H" && a.Value.Kind() == slog.KindGroup
-				})
-
-				if checkResultsLength(t, groupH, 1); t.Failed() {
-					return
-				}
-				checkForAttrWithKey(t, groupH[0].Value.Group(), "deep")
+				st.TestInGroup("G",
+					st.TestInGroup("H",
+						st.TestHasAttr(slog.Bool("deep", true)),
+					),
+				)(t, attrs)
 			},
 		},
 	}
@@ -388,33 +370,9 @@ func printRecordAttrsJSON(t *testing.T, r slog.Record) {
 	t.Logf("%s", buf.String())
 }
 
-func checkResultsLength[T any](t *testing.T, got []T, expLen int) {
+func requireResultLen[T any](t *testing.T, got []T, expLen int) {
 	t.Helper()
 	if len(got) != expLen {
-		t.Errorf("wrong number of results; got %d, expected %d", len(got), expLen)
+		t.Fatalf("wrong number of results; got %d, expected %d", len(got), expLen)
 	}
-}
-
-func checkForAttrWithKey(t *testing.T, attrs []slog.Attr, targetKey string) {
-	t.Helper()
-
-	got := collectMatchingAttrs(t, attrs, func(a slog.Attr) bool {
-		return a.Key == targetKey
-	})
-	if len(got) < 1 {
-		t.Errorf("did not find expected key %s", targetKey)
-	}
-}
-
-func collectMatchingAttrs(t *testing.T, attrs []slog.Attr, match func(slog.Attr) bool) []slog.Attr {
-	t.Helper()
-
-	out := make([]slog.Attr, 0, len(attrs))
-	for _, attr := range attrs {
-		if match(attr) {
-			out = append(out, attr)
-		}
-	}
-
-	return slices.Clip(out)
 }

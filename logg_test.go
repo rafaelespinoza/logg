@@ -11,6 +11,7 @@ import (
 
 	"github.com/rafaelespinoza/logg"
 	"github.com/rafaelespinoza/logg/internal"
+	st "github.com/rafaelespinoza/logg/internal/slogtesting"
 )
 
 // setupPackageVars sets up some package-level state expected by most tests.
@@ -183,8 +184,10 @@ func TestSetDefaults(t *testing.T) {
 		if len(gotRecords) != 1 {
 			t.Fatalf("wrong number of record attrs; got %d, expected %d", len(gotRecords), 1)
 		}
+
 		gotAttrs := internal.GetRecordAttrs(gotRecords[0])
-		testGroupAttr(t, gotAttrs, internal.SlogGroupAttrs("application_metadata", slog.String("foo", "bar")))
+		checkGroupAttr := st.TestInGroup("application_metadata", st.TestHasAttr(slog.String("foo", "bar")))
+		checkGroupAttr(t, gotAttrs)
 	})
 
 	t.Run("settings.ApplicationMetadataKey", func(t *testing.T) {
@@ -202,11 +205,13 @@ func TestSetDefaults(t *testing.T) {
 		if len(gotRecords) != 1 {
 			t.Fatalf("wrong number of record attrs; got %d, expected %d", len(gotRecords), 1)
 		}
+
 		gotAttrs := internal.GetRecordAttrs(gotRecords[0])
-		testGroupAttr(t, gotAttrs, internal.SlogGroupAttrs("metadata",
-			slog.String("branch_name", "dev"),
-			slog.String("build_time", "now"),
-		))
+		checkGroupAttrs := st.TestInGroup("metadata",
+			st.TestHasAttr(slog.String("branch_name", "dev")),
+			st.TestHasAttr(slog.String("build_time", "now")),
+		)
+		checkGroupAttrs(t, gotAttrs)
 	})
 
 	t.Run("settings.TraceIDKey", func(t *testing.T) {
@@ -221,8 +226,10 @@ func TestSetDefaults(t *testing.T) {
 		if len(gotRecords) != 1 {
 			t.Fatalf("wrong number of record attrs; got %d, expected %d", len(gotRecords), 1)
 		}
+
 		gotAttrs := internal.GetRecordAttrs(gotRecords[0])
-		testTraceIDAttr(t, gotAttrs, slog.String("id", "trace_id"))
+		checkAttr := st.TestHasAttr(slog.String("id", "trace_id"))
+		checkAttr(t, gotAttrs)
 	})
 
 	t.Run("settings.DataKey", func(t *testing.T) {
@@ -239,11 +246,13 @@ func TestSetDefaults(t *testing.T) {
 		if len(gotRecords) != 1 {
 			t.Fatalf("wrong number of record attrs; got %d, expected %d", len(gotRecords), 1)
 		}
+
 		gotAttrs := internal.GetRecordAttrs(gotRecords[0])
-		testGroupAttr(t, gotAttrs, internal.SlogGroupAttrs("message_data",
-			slog.String("sierra", "nevada"),
-			slog.String("foo", "bar")),
+		checkGroupAttrs := st.TestInGroup("message_data",
+			st.TestHasAttr(slog.String("sierra", "nevada")),
+			st.TestHasAttr(slog.String("foo", "bar")),
 		)
+		checkGroupAttrs(t, gotAttrs)
 	})
 }
 
@@ -264,8 +273,10 @@ func TestNew(t *testing.T) {
 		if len(gotRecords) != 1 {
 			t.Fatalf("wrong number of record attrs; got %d, expected %d", len(gotRecords), 1)
 		}
+
 		gotAttrs := internal.GetRecordAttrs(gotRecords[0])
-		testTraceIDAttr(t, gotAttrs, slog.String("trace_id", "tracing_id"))
+		checkAttr := st.TestHasAttr(slog.String("trace_id", "tracing_id"))
+		checkAttr(t, gotAttrs)
 	})
 
 	t.Run("with data attrs", func(t *testing.T) {
@@ -281,8 +292,10 @@ func TestNew(t *testing.T) {
 		if len(gotRecords) != 1 {
 			t.Fatalf("wrong number of record attrs; got %d, expected %d", len(gotRecords), 1)
 		}
+
 		gotAttrs := internal.GetRecordAttrs(gotRecords[0])
-		testGroupAttr(t, gotAttrs, internal.SlogGroupAttrs("data", slog.String("sierra", "nevada")))
+		checkGroupAttr := st.TestInGroup("data", st.TestHasAttr(slog.String("sierra", "nevada")))
+		checkGroupAttr(t, gotAttrs)
 	})
 
 	t.Run("log with data attrs", func(t *testing.T) {
@@ -298,11 +311,13 @@ func TestNew(t *testing.T) {
 		if len(gotRecords) != 1 {
 			t.Fatalf("wrong number of record attrs; got %d, expected %d", len(gotRecords), 1)
 		}
+
 		gotAttrs := internal.GetRecordAttrs(gotRecords[0])
-		testGroupAttr(t, gotAttrs, internal.SlogGroupAttrs("data",
-			slog.String("sierra", "nevada"),
-			slog.Bool("bravo", true),
-		))
+		checkGroupAttrs := st.TestInGroup("data",
+			st.TestHasAttr(slog.String("sierra", "nevada")),
+			st.TestHasAttr(slog.Bool("bravo", true)),
+		)
+		checkGroupAttrs(t, gotAttrs)
 	})
 
 	t.Run("application_metadata key not duplicated", func(t *testing.T) {
@@ -326,117 +341,11 @@ func TestNew(t *testing.T) {
 			t.Fatalf("wrong number of record attrs; got %d, expected %d", len(gotRecords), 1)
 		}
 
-		gotAttrs := internal.GetRecordAttrs(gotRecords[0])
-		testGroupAttr(t, gotAttrs, internal.SlogGroupAttrs("metadata", slog.String("foo", "bar")))
-
-		gotAttrs = internal.GetRecordAttrs(gotRecords[1])
-		testGroupAttr(t, gotAttrs, internal.SlogGroupAttrs("metadata", slog.String("foo", "bar")))
+		for _, gotRecord := range gotRecords {
+			checkGroupAttr := st.TestInGroup("metadata", st.TestHasAttr(slog.String("foo", "bar")))
+			checkGroupAttr(t, internal.GetRecordAttrs(gotRecord))
+		}
 	})
-}
-
-func testGroupAttr(t *testing.T, gotAttrs []slog.Attr, expectedGroup slog.Attr) {
-	t.Helper()
-	if got := expectedGroup.Value.Kind(); got != slog.KindGroup {
-		t.Fatalf("test setup error, the expected attribute must be %q; got %q", slog.KindGroup, got)
-	}
-
-	targetAttrs := make([]slog.Attr, 0, 1)
-	for _, attr := range gotAttrs {
-		if attr.Key == expectedGroup.Key {
-			targetAttrs = append(targetAttrs, attr)
-		}
-	}
-	if len(targetAttrs) != 1 {
-		t.Fatalf("wrong number of attributes found; got %d, expected %d", len(targetAttrs), 1)
-	}
-
-	gotAttr := targetAttrs[0]
-	if got := gotAttr.Value.Kind(); got != slog.KindGroup {
-		t.Fatalf("unexpected Kind for attribute; got %q, expected %q", got, slog.KindGroup)
-	}
-
-	gotGroup, expGroup := gotAttr.Value.Group(), expectedGroup.Value.Group()
-	testAttrs(t, gotGroup, expGroup)
-}
-
-func testTraceIDAttr(t *testing.T, gotAttrs []slog.Attr, expected slog.Attr) {
-	t.Helper()
-
-	targetAttrs := make([]slog.Attr, 0, 1)
-	for _, attr := range gotAttrs {
-		if attr.Key == expected.Key {
-			targetAttrs = append(targetAttrs, attr)
-		}
-	}
-	if len(targetAttrs) != 1 {
-		t.Fatalf("wrong number of trace ID attributes; got %d, expected %d", len(targetAttrs), 1)
-	}
-
-	gotTraceIDAttr := targetAttrs[0]
-	got := gotTraceIDAttr.Value.String()
-	exp := expected.Value.String()
-	if got != exp {
-		t.Errorf("wrong trace ID value at key %q; got %q, expected %q", expected.Key, got, exp)
-	}
-}
-
-func testAttrs(t *testing.T, actual, expected []slog.Attr) {
-	t.Helper()
-
-	if len(actual) != len(expected) {
-		t.Errorf("wrong number of items; got %d, expected %d", len(actual), len(expected))
-	}
-
-	// Collect data to compare.
-	actualKeyVals, expectedKeyVals := make(map[string]slog.Attr, len(actual)), make(map[string]slog.Attr, len(expected))
-	var found bool
-	for i := range actual {
-		attr := actual[i]
-		if _, found = actualKeyVals[attr.Key]; found {
-			t.Fatalf("unexpected duplicate key in actual result %q", attr.Key)
-		}
-		actualKeyVals[attr.Key] = attr
-	}
-	for i := range expected {
-		attr := expected[i]
-		if _, found = expectedKeyVals[attr.Key]; found {
-			t.Fatalf("unexpected duplicate key in expected result %q", attr.Key)
-		}
-		expectedKeyVals[attr.Key] = attr
-	}
-
-	// Compare keys and values.
-	for i := range actual {
-		actualAttr := actual[i]
-		key := actualAttr.Key
-		expectedAttr, found := expectedKeyVals[key]
-		if !found {
-			t.Errorf("unexpected key %q in actual result", key)
-			continue
-		}
-		if !actualAttr.Equal(expectedAttr) {
-			t.Errorf(
-				"actual value at key %q does not equal expected value; got %v, expected %v",
-				key, actualAttr.Value, expectedAttr.Value,
-			)
-		}
-	}
-
-	for i := range expected {
-		expectedAttr := expected[i]
-		key := expectedAttr.Key
-		actualAttr, found := actualKeyVals[key]
-		if !found {
-			t.Errorf("did not find expected key %q in actual result", key)
-			continue
-		}
-		if !actualAttr.Equal(expectedAttr) {
-			t.Errorf(
-				"actual value at key %q does not equal expected value; got %v, expected %v",
-				key, actualAttr.Value, expectedAttr.Value,
-			)
-		}
-	}
 }
 
 // collectRecords calls the run function to exercise the code to test and
