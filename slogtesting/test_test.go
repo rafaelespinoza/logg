@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	st "github.com/rafaelespinoza/logg/internal/slogtesting"
+	st "github.com/rafaelespinoza/logg/slogtesting"
 )
 
 func TestTest(t *testing.T) {

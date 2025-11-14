@@ -1,4 +1,4 @@
-package internal_test
+package slogtesting_test
 
 import (
 	"bytes"
@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/rafaelespinoza/logg/internal"
-	st "github.com/rafaelespinoza/logg/internal/slogtesting"
+	st "github.com/rafaelespinoza/logg/slogtesting"
 )
 
 func TestSlogtest(t *testing.T) {
@@ -34,11 +34,11 @@ func TestSlogtest(t *testing.T) {
 	newHandler := func(t *testing.T) slog.Handler {
 		t.Helper()
 		buf.Reset() // try to make each test a clean slate.
-		opts := internal.AttrHandlerOptions{
+		opts := st.AttrHandlerOptions{
 			HandlerOptions: slog.HandlerOptions{Level: slog.LevelInfo},
 			CaptureRecord:  captureJSONRecord,
 		}
-		return internal.NewAttrHandler(&opts)
+		return st.NewAttrHandler(&opts)
 	}
 	makeTestResults := func(t *testing.T) (out map[string]any) {
 		t.Helper()
@@ -59,13 +59,13 @@ func TestSlogtest(t *testing.T) {
 func TestAttrHandler(t *testing.T) {
 	tests := []struct {
 		name   string
-		opts   *internal.AttrHandlerOptions
+		opts   *st.AttrHandlerOptions
 		action func(*testing.T, slog.Handler)
 		expect func(*testing.T, []slog.Record)
 	}{
 		{
 			name: "options.ReplaceAttr time key",
-			opts: &internal.AttrHandlerOptions{
+			opts: &st.AttrHandlerOptions{
 				HandlerOptions: slog.HandlerOptions{
 					ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
 						if a.Key == slog.TimeKey {
@@ -90,7 +90,7 @@ func TestAttrHandler(t *testing.T) {
 		},
 		{
 			name: "options.Level level key",
-			opts: &internal.AttrHandlerOptions{
+			opts: &st.AttrHandlerOptions{
 				HandlerOptions: slog.HandlerOptions{
 					ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
 						if a.Key == slog.LevelKey {
@@ -129,7 +129,7 @@ func TestAttrHandler(t *testing.T) {
 		},
 		{
 			name: "deep group",
-			opts: &internal.AttrHandlerOptions{},
+			opts: &st.AttrHandlerOptions{},
 			action: func(t *testing.T, h slog.Handler) {
 				rec := slog.NewRecord(time.Now(), slog.LevelInfo, "msg", 0)
 				rec.AddAttrs(internal.SlogGroupAttrs("G",
@@ -164,7 +164,7 @@ func TestAttrHandler(t *testing.T) {
 				}
 			}
 
-			h := internal.NewAttrHandler(test.opts)
+			h := st.NewAttrHandler(test.opts)
 			test.action(t, h)
 
 			test.expect(t, got)
@@ -210,13 +210,13 @@ func TestAttrHandlerEnabled(t *testing.T) {
 	}
 
 	runTest := func(t *testing.T, optsNil bool, handlerLevel, recordLevel slog.Level, expOutput bool) {
-		var opts *internal.AttrHandlerOptions
+		var opts *st.AttrHandlerOptions
 		if !optsNil {
-			opts = &internal.AttrHandlerOptions{
+			opts = &st.AttrHandlerOptions{
 				HandlerOptions: slog.HandlerOptions{Level: handlerLevel},
 			}
 		}
-		handler := internal.NewAttrHandler(opts)
+		handler := st.NewAttrHandler(opts)
 		enabled := handler.Enabled(context.Background(), recordLevel)
 		if expOutput && !enabled {
 			t.Errorf("expected data at level %s", recordLevel.String())
@@ -260,7 +260,7 @@ func TestAttrHandlerNoCapture(t *testing.T) {
 		}
 	}()
 
-	h := internal.NewAttrHandler(&internal.AttrHandlerOptions{})
+	h := st.NewAttrHandler(&st.AttrHandlerOptions{})
 	err := h.Handle(context.Background(), slog.NewRecord(time.Now(), slog.LevelInfo, "m", 0))
 	if err != nil {
 		t.Error(err)

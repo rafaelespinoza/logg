@@ -2,24 +2,24 @@ package internal
 
 import "log/slog"
 
-// attrBuilder is a state mechanism for a call to [slog.Handler.Handle].
-type attrBuilder struct {
-	replaceAttr func(groups []string, attr slog.Attr) slog.Attr
-	attrsByPath map[string]*attrWithPath
-	results     []slog.Attr
+// AttrBuilder is a state mechanism for a call to [slog.Handler.Handle].
+type AttrBuilder struct {
+	ReplaceAttr func(groups []string, attr slog.Attr) slog.Attr
+	AttrsByPath map[string]*AttrWithPath
+	Results     []slog.Attr
 }
 
-// buildAttr follows the rules stated for [slog.Handler.Handle] that are not
+// BuildAttr follows the rules stated for [slog.Handler.Handle] that are not
 // specific to builtins, and if allowed, constructs an attribute and appends it
 // to the results field. As results are updated, so is the attrsByPath field.
 // These tandem updates assist in finding, creating and updating attributes
 // arranged in groups.
-func (ab *attrBuilder) buildAttr(groups []string, attr slog.Attr) {
+func (ab *AttrBuilder) BuildAttr(groups []string, attr slog.Attr) {
 	// From slog handler docs:
 	// 	Attr's values should be resolved.
 	// This also happens in some other places.
 	attr.Value = attr.Value.Resolve()
-	if rep := ab.replaceAttr; rep != nil && attr.Value.Kind() != slog.KindGroup {
+	if rep := ab.ReplaceAttr; rep != nil && attr.Value.Kind() != slog.KindGroup {
 		attr = rep(groups, attr)
 		// Resolve again in case replaceAttr returns an unresolved attribute.
 		attr.Value = attr.Value.Resolve()
@@ -45,7 +45,7 @@ func (ab *attrBuilder) buildAttr(groups []string, attr slog.Attr) {
 		}
 
 		for i, a := range groupAttrs {
-			ab.buildAttr(groups, a)
+			ab.BuildAttr(groups, a)
 			// Resolve each group attribute. Though this attribute was passed to
 			// buildAttr, which calls Resolve, its resolution wouldn't be observed
 			// here because it's passed as a value.
@@ -57,18 +57,18 @@ func (ab *attrBuilder) buildAttr(groups []string, attr slog.Attr) {
 		}
 
 		attr = SlogGroupAttrs(attr.Key, groupAttrs...)
-		ab.results = append(ab.results, attr)
-		ab.attrsByPath[attr.Key] = newAttrWithPath(&attr)
+		ab.Results = append(ab.Results, attr)
+		ab.AttrsByPath[attr.Key] = newAttrWithPath(&attr)
 		return
 	}
 
 	if len(groups) < 1 {
-		ab.results = append(ab.results, attr)
-		ab.attrsByPath[attr.Key] = newAttrWithPath(&attr)
+		ab.Results = append(ab.Results, attr)
+		ab.AttrsByPath[attr.Key] = newAttrWithPath(&attr)
 		return
 	}
 
-	mount, path := findAttr(ab.attrsByPath, groups)
+	mount, path := findAttr(ab.AttrsByPath, groups)
 	slog.Debug(logPrefix+"from (*ab).buildAttr, after findAttr",
 		slog.Any("input_groups", groups), slog.String("input_attr_key", attr.Key), slog.Any("input_attr_value", attr.Value),
 		slog.Bool("is_mount_nil", mount == nil), slog.Any("path", path),
@@ -76,7 +76,7 @@ func (ab *attrBuilder) buildAttr(groups []string, attr slog.Attr) {
 
 	if mount == nil {
 		attr = buildGroupsAroundAttr(groups, attr)
-		ab.results = append(ab.results, attr)
+		ab.Results = append(ab.Results, attr)
 
 		// Ensure that the item to map is the same item added to results. In
 		// other spots where the results field is updated in tandem with the
@@ -88,8 +88,8 @@ func (ab *attrBuilder) buildAttr(groups []string, attr slog.Attr) {
 		// pointer to a local variable is used in the same way as the other
 		// updates to the results and attrsByPath fields. This may indicate a
 		// subtle bug, and is something to watch out for.
-		lastItem := &ab.results[len(ab.results)-1]
-		ab.attrsByPath[attr.Key] = newAttrWithPath(lastItem)
+		lastItem := &ab.Results[len(ab.Results)-1]
+		ab.AttrsByPath[attr.Key] = newAttrWithPath(lastItem)
 		return
 	}
 

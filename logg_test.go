@@ -11,7 +11,7 @@ import (
 
 	"github.com/rafaelespinoza/logg"
 	"github.com/rafaelespinoza/logg/internal"
-	st "github.com/rafaelespinoza/logg/internal/slogtesting"
+	st "github.com/rafaelespinoza/logg/slogtesting"
 )
 
 // setupPackageVars sets up some package-level state expected by most tests.
@@ -363,11 +363,11 @@ func collectRecords(t *testing.T, lvl slog.Level, run func(*testing.T, slog.Hand
 		out = append(out, r)
 		return nil
 	}
-	opts := internal.AttrHandlerOptions{
+	opts := st.AttrHandlerOptions{
 		HandlerOptions: slog.HandlerOptions{Level: lvl},
 		CaptureRecord:  capture,
 	}
-	handler := internal.NewAttrHandler(&opts)
+	handler := st.NewAttrHandler(&opts)
 	run(t, handler)
 	return out
 }

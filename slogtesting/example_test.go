@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	st "github.com/rafaelespinoza/logg/internal/slogtesting"
+	st "github.com/rafaelespinoza/logg/slogtesting"
 )
 
 func ExampleCheck() {
