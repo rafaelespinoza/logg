@@ -6,6 +6,18 @@ import (
 	"slices"
 )
 
+// GetRecordAttrs collects each attribute on the record.
+func GetRecordAttrs(r slog.Record) []slog.Attr {
+	out := make([]slog.Attr, 0, r.NumAttrs())
+	r.Attrs(func(a slog.Attr) bool {
+		out = append(out, a)
+		return true
+	})
+	return out
+}
+
+const logPrefix = "logg/slogtesting: "
+
 func collectMatchingAttrs(attrs []slog.Attr, match matcher) []slog.Attr {
 	out := make([]slog.Attr, 0, len(attrs))
 	for _, attr := range attrs {

@@ -8,12 +8,11 @@ import (
 )
 
 // A Check is a general-purpose test on slog attributes. It's based off the
-// testing/slogtest package. A Check is similar to [Test], except this one
-// does not rely on *testing.T, and it returns an error.
+// testing/slogtest package.
 type Check func([]slog.Attr) error
 
-// CheckHasKey makes a Check for the presence of an attribute with a key.
-func CheckHasKey(key string) Check {
+// HasKey makes a Check for the presence of an attribute with a key.
+func HasKey(key string) Check {
 	return func(attrs []slog.Attr) (err error) {
 		matchKey := makeKeyMatcher(key)
 		got := collectMatchingAttrs(attrs, matchKey)
@@ -24,8 +23,8 @@ func CheckHasKey(key string) Check {
 	}
 }
 
-// CheckMissingKey makes a Check for the absence of an attribute with a key.
-func CheckMissingKey(key string) Check {
+// MissingKey makes a Check for the absence of an attribute with a key.
+func MissingKey(key string) Check {
 	return func(attrs []slog.Attr) (err error) {
 		matchKey := makeKeyMatcher(key)
 		got := collectMatchingAttrs(attrs, matchKey)
@@ -36,9 +35,9 @@ func CheckMissingKey(key string) Check {
 	}
 }
 
-// CheckHasAttr makes a Check for the presence of an attribute with the wanted
+// HasAttr makes a Check for the presence of an attribute with the wanted
 // key and value.
-func CheckHasAttr(want slog.Attr) Check {
+func HasAttr(want slog.Attr) Check {
 	return func(attrs []slog.Attr) (err error) {
 		matchKey := makeKeyMatcher(want.Key)
 		gotMatches, err := collectNMatchingAttrs(attrs, 1, matchKey)
@@ -58,10 +57,10 @@ func CheckHasAttr(want slog.Attr) Check {
 	}
 }
 
-// CheckInGroup makes a Check for a Check in a group with a matching name. The
+// InGroup makes a Check for a Check in a group with a matching name. The
 // output Check will run all of the input Checks and combine non-nil errors into
 // 1 using errors.Join.
-func CheckInGroup(name string, c Check, moreChecks ...Check) Check {
+func InGroup(name string, c Check, moreChecks ...Check) Check {
 	return func(attrs []slog.Attr) (err error) {
 		matchKey := makeKeyMatcher(name)
 		got, err := collectNMatchingAttrs(attrs, 1, matchKey)

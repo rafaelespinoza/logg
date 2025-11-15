@@ -1,4 +1,4 @@
-package internal
+package slogtesting
 
 import (
 	"log/slog"

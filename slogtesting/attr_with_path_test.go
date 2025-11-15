@@ -1,31 +1,33 @@
-package internal
+package slogtesting
 
 import (
 	"log/slog"
 	"slices"
 	"testing"
+
+	"github.com/rafaelespinoza/logg/internal"
 )
 
 func pointTo[T any](in T) (out *T) { return &in }
 
 func TestFindAttr(t *testing.T) {
-	builtinNode := AttrWithPath{Attr: pointTo(slog.String(slog.MessageKey, "message")), children: nil}
-	terminalNode := AttrWithPath{Attr: pointTo(slog.String("c", "charlie")), children: nil}
+	builtinNode := attrWithPath{Attr: pointTo(slog.String(slog.MessageKey, "message")), children: nil}
+	terminalNode := attrWithPath{Attr: pointTo(slog.String("c", "charlie")), children: nil}
 
-	nodeH := AttrWithPath{
+	nodeH := attrWithPath{
 		Attr:     pointTo(slog.String("H", "Hotel")),
 		children: nil,
 	}
 
-	nodeG := AttrWithPath{
-		Attr: pointTo(SlogGroupAttrs("G", *terminalNode.Attr, *nodeH.Attr)),
-		children: map[string]*AttrWithPath{
+	nodeG := attrWithPath{
+		Attr: pointTo(internal.SlogGroupAttrs("G", *terminalNode.Attr, *nodeH.Attr)),
+		children: map[string]*attrWithPath{
 			"child": &terminalNode,
 			"H":     &nodeH,
 		},
 	}
 
-	tree := map[string]*AttrWithPath{
+	tree := map[string]*attrWithPath{
 		slog.MessageKey: &builtinNode,
 		"G":             &nodeG,
 	}
@@ -34,7 +36,7 @@ func TestFindAttr(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		tree    map[string]*AttrWithPath
+		tree    map[string]*attrWithPath
 		path    []string
 		expAttr *slog.Attr
 		expPath []string

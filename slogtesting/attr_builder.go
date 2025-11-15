@@ -1,20 +1,24 @@
-package internal
+package slogtesting
 
-import "log/slog"
+import (
+	"log/slog"
 
-// AttrBuilder is a state mechanism for a call to [slog.Handler.Handle].
-type AttrBuilder struct {
+	"github.com/rafaelespinoza/logg/internal"
+)
+
+// attrBuilder is a state mechanism for a call to [slog.Handler.Handle].
+type attrBuilder struct {
 	ReplaceAttr func(groups []string, attr slog.Attr) slog.Attr
-	AttrsByPath map[string]*AttrWithPath
+	AttrsByPath map[string]*attrWithPath
 	Results     []slog.Attr
 }
 
-// BuildAttr follows the rules stated for [slog.Handler.Handle] that are not
+// buildAttr follows the rules stated for [slog.Handler.Handle] that are not
 // specific to builtins, and if allowed, constructs an attribute and appends it
 // to the results field. As results are updated, so is the attrsByPath field.
 // These tandem updates assist in finding, creating and updating attributes
 // arranged in groups.
-func (ab *AttrBuilder) BuildAttr(groups []string, attr slog.Attr) {
+func (ab *attrBuilder) buildAttr(groups []string, attr slog.Attr) {
 	// From slog handler docs:
 	// 	Attr's values should be resolved.
 	// This also happens in some other places.
@@ -45,7 +49,7 @@ func (ab *AttrBuilder) BuildAttr(groups []string, attr slog.Attr) {
 		}
 
 		for i, a := range groupAttrs {
-			ab.BuildAttr(groups, a)
+			ab.buildAttr(groups, a)
 			// Resolve each group attribute. Though this attribute was passed to
 			// buildAttr, which calls Resolve, its resolution wouldn't be observed
 			// here because it's passed as a value.
@@ -56,7 +60,7 @@ func (ab *AttrBuilder) BuildAttr(groups []string, attr slog.Attr) {
 			return
 		}
 
-		attr = SlogGroupAttrs(attr.Key, groupAttrs...)
+		attr = internal.SlogGroupAttrs(attr.Key, groupAttrs...)
 		ab.Results = append(ab.Results, attr)
 		ab.AttrsByPath[attr.Key] = newAttrWithPath(&attr)
 		return
@@ -106,8 +110,8 @@ func (ab *AttrBuilder) BuildAttr(groups []string, attr slog.Attr) {
 		mount.children[attr.Key] = newAttrWithPath(&attr)
 	} else {
 		slog.Debug(logPrefix+"from (*ab).buildAttr, would mount a non-group attr onto a non-group attr",
-			SlogGroupAttrs("mount", slog.String("key", mount.Key), slog.String("val_kind", mount.Value.Kind().String())),
-			SlogGroupAttrs("attr", slog.String("key", attr.Key), slog.String("val_kind", attr.Value.Kind().String())),
+			internal.SlogGroupAttrs("mount", slog.String("key", mount.Key), slog.String("val_kind", mount.Value.Kind().String())),
+			internal.SlogGroupAttrs("attr", slog.String("key", attr.Key), slog.String("val_kind", attr.Value.Kind().String())),
 		)
 	}
 }
@@ -119,11 +123,11 @@ func buildGroupsAroundAttr(groups []string, attr slog.Attr) slog.Attr {
 
 	// Start at the end of groups and build the output backwards. This results
 	// in the first group being the primary group for attr.
-	out := SlogGroupAttrs(groups[len(groups)-1], attr)
+	out := internal.SlogGroupAttrs(groups[len(groups)-1], attr)
 
 	for i := len(groups) - 2; i >= 0; i-- {
 		group := groups[i]
-		out = SlogGroupAttrs(group, out)
+		out = internal.SlogGroupAttrs(group, out)
 	}
 
 	return out

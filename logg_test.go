@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/rafaelespinoza/logg"
-	"github.com/rafaelespinoza/logg/internal"
 	st "github.com/rafaelespinoza/logg/slogtesting"
 )
 
@@ -185,9 +184,11 @@ func TestSetDefaults(t *testing.T) {
 			t.Fatalf("wrong number of record attrs; got %d, expected %d", len(gotRecords), 1)
 		}
 
-		gotAttrs := internal.GetRecordAttrs(gotRecords[0])
-		checkGroupAttr := st.TestInGroup("application_metadata", st.TestHasAttr(slog.String("foo", "bar")))
-		checkGroupAttr(t, gotAttrs)
+		gotAttrs := st.GetRecordAttrs(gotRecords[0])
+		checkGroupAttr := st.InGroup("application_metadata", st.HasAttr(slog.String("foo", "bar")))
+		if err := checkGroupAttr(gotAttrs); err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("settings.ApplicationMetadataKey", func(t *testing.T) {
@@ -206,12 +207,14 @@ func TestSetDefaults(t *testing.T) {
 			t.Fatalf("wrong number of record attrs; got %d, expected %d", len(gotRecords), 1)
 		}
 
-		gotAttrs := internal.GetRecordAttrs(gotRecords[0])
-		checkGroupAttrs := st.TestInGroup("metadata",
-			st.TestHasAttr(slog.String("branch_name", "dev")),
-			st.TestHasAttr(slog.String("build_time", "now")),
+		gotAttrs := st.GetRecordAttrs(gotRecords[0])
+		checkGroupAttrs := st.InGroup("metadata",
+			st.HasAttr(slog.String("branch_name", "dev")),
+			st.HasAttr(slog.String("build_time", "now")),
 		)
-		checkGroupAttrs(t, gotAttrs)
+		if err := checkGroupAttrs(gotAttrs); err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("settings.TraceIDKey", func(t *testing.T) {
@@ -227,9 +230,11 @@ func TestSetDefaults(t *testing.T) {
 			t.Fatalf("wrong number of record attrs; got %d, expected %d", len(gotRecords), 1)
 		}
 
-		gotAttrs := internal.GetRecordAttrs(gotRecords[0])
-		checkAttr := st.TestHasAttr(slog.String("id", "trace_id"))
-		checkAttr(t, gotAttrs)
+		gotAttrs := st.GetRecordAttrs(gotRecords[0])
+		checkAttr := st.HasAttr(slog.String("id", "trace_id"))
+		if err := checkAttr(gotAttrs); err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("settings.DataKey", func(t *testing.T) {
@@ -247,12 +252,14 @@ func TestSetDefaults(t *testing.T) {
 			t.Fatalf("wrong number of record attrs; got %d, expected %d", len(gotRecords), 1)
 		}
 
-		gotAttrs := internal.GetRecordAttrs(gotRecords[0])
-		checkGroupAttrs := st.TestInGroup("message_data",
-			st.TestHasAttr(slog.String("sierra", "nevada")),
-			st.TestHasAttr(slog.String("foo", "bar")),
+		gotAttrs := st.GetRecordAttrs(gotRecords[0])
+		checkGroupAttrs := st.InGroup("message_data",
+			st.HasAttr(slog.String("sierra", "nevada")),
+			st.HasAttr(slog.String("foo", "bar")),
 		)
-		checkGroupAttrs(t, gotAttrs)
+		if err := checkGroupAttrs(gotAttrs); err != nil {
+			t.Error(err)
+		}
 	})
 }
 
@@ -274,9 +281,11 @@ func TestNew(t *testing.T) {
 			t.Fatalf("wrong number of record attrs; got %d, expected %d", len(gotRecords), 1)
 		}
 
-		gotAttrs := internal.GetRecordAttrs(gotRecords[0])
-		checkAttr := st.TestHasAttr(slog.String("trace_id", "tracing_id"))
-		checkAttr(t, gotAttrs)
+		gotAttrs := st.GetRecordAttrs(gotRecords[0])
+		checkAttr := st.HasAttr(slog.String("trace_id", "tracing_id"))
+		if err := checkAttr(gotAttrs); err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("with data attrs", func(t *testing.T) {
@@ -293,9 +302,11 @@ func TestNew(t *testing.T) {
 			t.Fatalf("wrong number of record attrs; got %d, expected %d", len(gotRecords), 1)
 		}
 
-		gotAttrs := internal.GetRecordAttrs(gotRecords[0])
-		checkGroupAttr := st.TestInGroup("data", st.TestHasAttr(slog.String("sierra", "nevada")))
-		checkGroupAttr(t, gotAttrs)
+		gotAttrs := st.GetRecordAttrs(gotRecords[0])
+		checkGroupAttr := st.InGroup("data", st.HasAttr(slog.String("sierra", "nevada")))
+		if err := checkGroupAttr(gotAttrs); err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("log with data attrs", func(t *testing.T) {
@@ -312,12 +323,14 @@ func TestNew(t *testing.T) {
 			t.Fatalf("wrong number of record attrs; got %d, expected %d", len(gotRecords), 1)
 		}
 
-		gotAttrs := internal.GetRecordAttrs(gotRecords[0])
-		checkGroupAttrs := st.TestInGroup("data",
-			st.TestHasAttr(slog.String("sierra", "nevada")),
-			st.TestHasAttr(slog.Bool("bravo", true)),
+		gotAttrs := st.GetRecordAttrs(gotRecords[0])
+		checkGroupAttrs := st.InGroup("data",
+			st.HasAttr(slog.String("sierra", "nevada")),
+			st.HasAttr(slog.Bool("bravo", true)),
 		)
-		checkGroupAttrs(t, gotAttrs)
+		if err := checkGroupAttrs(gotAttrs); err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("application_metadata key not duplicated", func(t *testing.T) {
@@ -342,8 +355,10 @@ func TestNew(t *testing.T) {
 		}
 
 		for _, gotRecord := range gotRecords {
-			checkGroupAttr := st.TestInGroup("metadata", st.TestHasAttr(slog.String("foo", "bar")))
-			checkGroupAttr(t, internal.GetRecordAttrs(gotRecord))
+			checkGroupAttr := st.InGroup("metadata", st.HasAttr(slog.String("foo", "bar")))
+			if err := checkGroupAttr(st.GetRecordAttrs(gotRecord)); err != nil {
+				t.Error(err)
+			}
 		}
 	})
 }

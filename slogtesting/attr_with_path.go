@@ -1,19 +1,19 @@
-package internal
+package slogtesting
 
 import "log/slog"
 
-// AttrWithPath assists in mapping attributes within handler state to help
+// attrWithPath assists in mapping attributes within handler state to help
 // finding attributes arranged in a hierarchical structure. In slog terms, these
 // are groups.
-type AttrWithPath struct {
+type attrWithPath struct {
 	*slog.Attr
-	children map[string]*AttrWithPath
+	children map[string]*attrWithPath
 }
 
-func newAttrWithPath(attr *slog.Attr) *AttrWithPath {
-	return &AttrWithPath{
+func newAttrWithPath(attr *slog.Attr) *attrWithPath {
+	return &attrWithPath{
 		Attr:     attr,
-		children: make(map[string]*AttrWithPath),
+		children: make(map[string]*attrWithPath),
 	}
 }
 
@@ -34,13 +34,13 @@ func newAttrWithPath(attr *slog.Attr) *AttrWithPath {
 //     both empty.
 //   - As a special case, if the inPath is length 0, then it returns nil, nil.
 //     To the caller, this might mean to create an attribute at the top level.
-func findAttr(root map[string]*AttrWithPath, inPath []string) (*AttrWithPath, []string) {
+func findAttr(root map[string]*attrWithPath, inPath []string) (*attrWithPath, []string) {
 	if len(inPath) < 1 {
 		return nil, nil
 	}
 
 	curr := root
-	var found *AttrWithPath
+	var found *attrWithPath
 	// pathInProgress records the path taken so far. In case a node was not
 	// found, at least we know how far we got; and compared to the input path,
 	// we know which steps to take to build to that target node.

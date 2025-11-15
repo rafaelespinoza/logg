@@ -84,8 +84,11 @@ func TestAttrHandler(t *testing.T) {
 			},
 			expect: func(t *testing.T, got []slog.Record) {
 				requireResultLen(t, got, 1)
-				attrs := internal.GetRecordAttrs(got[0])
-				st.TestHasKey("timestamp")(t, attrs)
+				attrs := st.GetRecordAttrs(got[0])
+				check := st.HasKey("timestamp")
+				if err := check(attrs); err != nil {
+					t.Error(err)
+				}
 			},
 		},
 		{
@@ -109,8 +112,11 @@ func TestAttrHandler(t *testing.T) {
 			},
 			expect: func(t *testing.T, got []slog.Record) {
 				requireResultLen(t, got, 1)
-				attrs := internal.GetRecordAttrs(got[0])
-				st.TestHasKey("sev")(t, attrs)
+				attrs := st.GetRecordAttrs(got[0])
+				check := st.HasKey("sev")
+				if err := check(attrs); err != nil {
+					t.Error(err)
+				}
 			},
 		},
 		{
@@ -142,13 +148,15 @@ func TestAttrHandler(t *testing.T) {
 			},
 			expect: func(t *testing.T, got []slog.Record) {
 				requireResultLen(t, got, 1)
-				attrs := internal.GetRecordAttrs(got[0])
-
-				st.TestInGroup("G",
-					st.TestInGroup("H",
-						st.TestHasAttr(slog.Bool("deep", true)),
+				attrs := st.GetRecordAttrs(got[0])
+				check := st.InGroup("G",
+					st.InGroup("H",
+						st.HasAttr(slog.Bool("deep", true)),
 					),
-				)(t, attrs)
+				)
+				if err := check(attrs); err != nil {
+					t.Error(err)
+				}
 			},
 		},
 	}
@@ -269,7 +277,7 @@ func TestAttrHandlerNoCapture(t *testing.T) {
 
 func makeJSONRecordCapturer(w io.Writer) func(r slog.Record) error {
 	return func(r slog.Record) error {
-		attrs := internal.GetRecordAttrs(r)
+		attrs := st.GetRecordAttrs(r)
 		mappedAttrs := mapAttrs(attrs)
 		return json.NewEncoder(w).Encode(mappedAttrs)
 	}
@@ -363,7 +371,7 @@ func mergeMaps(prev, next map[string]any) map[string]any {
 func printRecordAttrsJSON(t *testing.T, r slog.Record) {
 	t.Helper()
 
-	attrs := internal.GetRecordAttrs(r)
+	attrs := st.GetRecordAttrs(r)
 	mappedAttrs := mapAttrs(attrs)
 	var buf bytes.Buffer
 	_ = json.NewEncoder(&buf).Encode(mappedAttrs)

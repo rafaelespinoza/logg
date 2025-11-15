@@ -5,18 +5,16 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
-
-	"github.com/rafaelespinoza/logg/internal"
 )
 
 type attrHandler struct {
 	opts AttrHandlerOptions
 	mtx  *sync.Mutex
-	goas *internal.GroupsOrAttrs
+	goas *groupsOrAttrs
 }
 
 // AttrHandlerOptions is a superset of [slog.HandlerOptions] for use in
-// [NewAttrHandler]. The CaptureRecord field is callback function for using a
+// [NewAttrHandler]. The CaptureRecord field is a callback function for using a
 // record processed by the handler's Handle method.
 type AttrHandlerOptions struct {
 	slog.HandlerOptions
@@ -29,9 +27,9 @@ type AttrHandlerOptions struct {
 //
 // Its Handle method builds up a new slog.Record and passes the result to a
 // function, CaptureRecord, which is set when creating the Handler. Use the
-// [slog.Record.Attrs] method to access the attributes of the processed record.
-// Unless the handler was created with a CaptureRecord function, the Handle
-// method is a no-op.
+// [slog.Record.Attrs] method or [GetRecordAttrs] to access the attributes of
+// the processed record. Unless the handler was created with a CaptureRecord
+// function, the Handle method is a no-op.
 func NewAttrHandler(opts *AttrHandlerOptions) slog.Handler {
 	if opts == nil {
 		opts = &AttrHandlerOptions{}
@@ -71,7 +69,7 @@ func (h *attrHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	}
 
 	out := *h
-	out.goas = &internal.GroupsOrAttrs{Attrs: attrs, Next: h.goas}
+	out.goas = &groupsOrAttrs{Attrs: attrs, Next: h.goas}
 
 	return &out
 }
@@ -82,7 +80,7 @@ func (h *attrHandler) WithGroup(name string) slog.Handler {
 	}
 
 	out := *h
-	out.goas = &internal.GroupsOrAttrs{Group: name, Next: h.goas}
+	out.goas = &groupsOrAttrs{Group: name, Next: h.goas}
 
 	return &out
 }
@@ -90,9 +88,9 @@ func (h *attrHandler) WithGroup(name string) slog.Handler {
 func (h *attrHandler) buildRecordAttrs(r slog.Record) slog.Record {
 	out := slog.NewRecord(r.Time, r.Level, r.Message, r.PC)
 
-	ab := internal.AttrBuilder{
+	ab := attrBuilder{
 		ReplaceAttr: h.opts.ReplaceAttr,
-		AttrsByPath: make(map[string]*internal.AttrWithPath, max(r.NumAttrs()-3, 0)),
+		AttrsByPath: make(map[string]*attrWithPath, max(r.NumAttrs()-3, 0)),
 		Results:     make([]slog.Attr, 0, r.NumAttrs()+3),
 	}
 
@@ -101,18 +99,18 @@ func (h *attrHandler) buildRecordAttrs(r slog.Record) slog.Record {
 	// From slog.Handler docs:
 	// 	If r.Time is the zero time, ignore the time.
 	if !r.Time.IsZero() {
-		ab.BuildAttr(nil, slog.Time(slog.TimeKey, r.Time))
+		ab.buildAttr(nil, slog.Time(slog.TimeKey, r.Time))
 	}
-	ab.BuildAttr(nil, slog.String(slog.LevelKey, r.Level.String()))
-	ab.BuildAttr(nil, slog.String(slog.MessageKey, r.Message))
+	ab.buildAttr(nil, slog.String(slog.LevelKey, r.Level.String()))
+	ab.buildAttr(nil, slog.String(slog.MessageKey, r.Message))
 
 	// Work on the non builtin attributes.
 	// Start on data accumulated from .WithAttrs, .WithGroup.
-	groups := internal.ApplyGroupsOrAttrs(h.goas, ab.BuildAttr)
+	groups := applyGroupsOrAttrs(h.goas, ab.buildAttr)
 
 	// Now work on attributes passed in from the logger's output method.
 	r.Attrs(func(a slog.Attr) bool {
-		ab.BuildAttr(groups, a)
+		ab.buildAttr(groups, a)
 		return true
 	})
 
