@@ -26,10 +26,10 @@ type AttrHandlerOptions struct {
 // formatted log entries, you look at golang data structures.
 //
 // Its Handle method builds up a new slog.Record and passes the result to a
-// function, CaptureRecord, which is set when creating the Handler. Use the
-// [slog.Record.Attrs] method or [GetRecordAttrs] to access the attributes of
-// the processed record. Unless the handler was created with a CaptureRecord
-// function, the Handle method is a no-op.
+// function, CaptureRecord, which is set when creating the Handler. Use
+// [GetRecordAttrs] to access the attributes of the processed record. Unless the
+// handler was created with a CaptureRecord function, the Handle method is a
+// no-op.
 func NewAttrHandler(opts *AttrHandlerOptions) slog.Handler {
 	if opts == nil {
 		opts = &AttrHandlerOptions{}

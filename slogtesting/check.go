@@ -8,7 +8,7 @@ import (
 )
 
 // A Check is a general-purpose test on slog attributes. It's based off the
-// testing/slogtest package.
+// implementation of the [testing/slogtest] package.
 type Check func([]slog.Attr) error
 
 // HasKey makes a Check for the presence of an attribute with a key.

@@ -8,7 +8,7 @@ import (
 )
 
 func Example() {
-	// Each logging record is collected here.
+	// Each record output by the logger is captured here.
 	var records []slog.Record
 	capture := func(r slog.Record) error { records = append(records, r); return nil }
 
@@ -17,11 +17,15 @@ func Example() {
 	handler := st.NewAttrHandler(&opts)
 	logger := slog.New(handler)
 
-	// Accumulate some data, output a record at the INFO level.
+	// Your application does something that needs a test. This example
+	// accumulates some data and outputs a record at the INFO level.
 	logger.With("a", "b").WithGroup("G").With("c", "d").WithGroup("H").Info("msg", "e", "f")
+	// If the handler was a *slog.TextHandler, the output would look similar to:
+	// 	time=2006-01-02T15:04:05.012Z level=INFO msg=msg a=b G.c=d G.H.e=f
 
-	// Collect 1 record for each output invocation that matches with the
-	// handler's output level.
+	// This is the output data to test. Collect the attributes for each record
+	// that was output by the logger. It will also include the built-in
+	// attributes: time, level, message.
 	attrs := st.GetRecordAttrs(records[0])
 
 	// Run these tests.

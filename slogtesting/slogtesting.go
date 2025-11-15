@@ -1,3 +1,7 @@
+// Package slogtesting is a [slog.Handler] implementation and a set of simple
+// correctness checks on your application's structured logging outputs using the
+// [log/slog] package. The slog.Handler outputs in-memory golang data
+// structures, removing the need for your test to parse the log.
 package slogtesting
 
 import (
